@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SpaceGuard AI{% endblock %}</title>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- SpaceGuard CSS -->
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/spaceguard.css' %}">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="navbar navbar-dark navbar-spaceguard">
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+      <i class="bi bi-satellite fs-4 text-primary-accent"></i>
+      <span class="fw-bold">SpaceGuard AI</span>
+      <span class="badge badge-ai ms-1">IBM Granite</span>
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      {% if mission %}
+        <span class="text-muted small">Mission:</span>
+        <span class="text-white fw-semibold">{{ mission.name }}</span>
+        <span class="badge status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
+      {% endif %}
+      <a href="/admin/" class="btn btn-outline-secondary btn-sm">Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Mission selector sidebar indicator -->
+{% if all_missions %}
+<div class="mission-bar">
+  {% for m in all_missions %}
+    <a href="/missions/{{ m.pk }}/" class="mission-pill {% if mission and m.pk == mission.pk %}active{% endif %}">
+      <i class="bi bi-satellite-fill me-1"></i>{{ m.spacecraft_name }}
+    </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Flash messages -->
+{% if messages %}
+<div class="container-fluid mt-2">
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Main content -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Footer -->
+<footer class="footer-spaceguard">
+  <div class="container-fluid text-center">
+    <span class="text-muted small">
+      SpaceGuard AI &mdash; AI-Powered Spacecraft Health Monitoring &mdash;
+      Built with <strong>IBM Bob</strong> &amp; <strong>IBM Granite</strong> &mdash;
+      IBM AI Builders Challenge
+    </span>
+  </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
