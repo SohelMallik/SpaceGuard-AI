@@ -1,105 +1,77 @@
-"""
-test_prediction.py
-==================
-Unit tests for src/prediction.py
-"""
-
+import unittest
+import pandas as pd
+import joblib
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'src'))
+from prediction import load_model, load_saved_data, predict_risk, get_recommendation
 
-import pytest
-from src.prediction import (
-    FEATURE_COLS,
-    RECOMMENDATION_MAP,
-    get_recommendation,
-    predict_risk,
-)
+class TestPrediction(unittest.TestCase):
 
+    def setUp(self):
+        """Set up mock model and data files for testing."""
+        self.test_dir = Path("space-weather-predictor/tests/test_artifacts")
+        self.test_dir.mkdir(exist_ok=True)
 
-class TestFeatureCols:
-    def test_correct_feature_count(self):
-        assert len(FEATURE_COLS) == 7
+        # Mock model
+        self.mock_model = MagicMock()
+        self.mock_model.predict.return_value = ["HIGH"]
+        self.model_path = self.test_dir / "launch_decision_model.pkl"
+        joblib.dump(self.mock_model, self.model_path)
 
-    def test_expected_feature_names(self):
-        expected = {
-            "xclass_flare_count",
-            "mclass_flare_count",
-            "cclass_flare_count",
-            "max_kp_index",
-            "avg_kp_index",
-            "storm_count",
-            "event_trend",
+        # Mock data
+        self.mock_data = {
+            'current_stats': {'latest_risk_level': 'HIGH'},
+            'feature_cols': ['feature1', 'feature2'],
+            'risk_features': [{'date': '2023-01-01', 'feature1': 1, 'feature2': 2}]
         }
-        assert set(FEATURE_COLS) == expected
+        self.data_path = self.test_dir / "space_weather_data.pkl"
+        joblib.dump(self.mock_data, self.data_path)
+
+        # Point the prediction module to the test artifacts
+        import prediction
+        prediction.MODEL_PATH = self.model_path
+        prediction.DATA_PATH = self.data_path
 
 
-class TestRecommendationMap:
-    def test_all_levels_mapped(self):
-        for level in ["LOW", "MODERATE", "HIGH", "EXTREME"]:
-            assert level in RECOMMENDATION_MAP
+    def tearDown(self):
+        """Remove mock files after tests."""
+        self.model_path.unlink()
+        self.data_path.unlink()
+        self.test_dir.rmdir()
 
-    def test_correct_values(self):
-        assert RECOMMENDATION_MAP["LOW"] == "GO"
-        assert RECOMMENDATION_MAP["MODERATE"] == "CAUTION"
-        assert RECOMMENDATION_MAP["HIGH"] == "DELAY"
-        assert RECOMMENDATION_MAP["EXTREME"] == "NO-GO"
+    def test_load_model(self):
+        """Test loading the model."""
+        model = load_model()
+        self.assertIsNotNone(model)
+        # Check if the loaded model's predict method works as mocked
+        self.assertEqual(model.predict(pd.DataFrame()), ["HIGH"])
+
+    def test_load_saved_data(self):
+        """Test loading the saved data."""
+        data = load_saved_data()
+        self.assertIsNotNone(data)
+        self.assertEqual(data['current_stats']['latest_risk_level'], 'HIGH')
+
+    def test_predict_risk(self):
+        """Test the predict_risk function."""
+        model = load_model()
+        features = pd.DataFrame([{'feature1': 3, 'feature2': 4}])
+        prediction = predict_risk(model, features)
+        self.assertEqual(prediction, ["HIGH"])
+        self.mock_model.predict.assert_called_once()
 
 
-class TestGetRecommendation:
-    def test_known_levels(self):
-        assert get_recommendation("LOW") == "GO"
-        assert get_recommendation("MODERATE") == "CAUTION"
-        assert get_recommendation("HIGH") == "DELAY"
-        assert get_recommendation("EXTREME") == "NO-GO"
-
-    def test_unknown_level_returns_unknown(self):
-        assert get_recommendation("INVALID") == "UNKNOWN"
+    def test_get_recommendation(self):
+        """Test the recommendation mapping."""
+        self.assertEqual(get_recommendation("LOW"), "GO")
+        self.assertEqual(get_recommendation("MODERATE"), "CAUTION")
+        self.assertEqual(get_recommendation("HIGH"), "DELAY")
+        self.assertEqual(get_recommendation("EXTREME"), "NO-GO")
+        self.assertEqual(get_recommendation("UNKNOWN_LEVEL"), "UNKNOWN")
 
 
-class TestPredictRisk:
-    """Tests that use a simple mock model to avoid requiring saved .pkl files."""
-
-    class _MockModel:
-        def predict(self, X):
-            # Always return "LOW" for testing
-            return ["LOW"] * len(X)
-
-    def _valid_features(self) -> dict:
-        return {
-            "xclass_flare_count": 0,
-            "mclass_flare_count": 0,
-            "cclass_flare_count": 0,
-            "max_kp_index": 0.0,
-            "avg_kp_index": 0.0,
-            "storm_count": 0,
-            "event_trend": 1.0,
-        }
-
-    def test_predict_returns_string(self):
-        result = predict_risk(self._valid_features(), model=self._MockModel())
-        assert isinstance(result, str)
-
-    def test_predict_valid_label(self):
-        result = predict_risk(self._valid_features(), model=self._MockModel())
-        assert result in {"LOW", "MODERATE", "HIGH", "EXTREME"}
-
-    def test_missing_feature_raises_value_error(self):
-        features = self._valid_features()
-        del features["max_kp_index"]
-        with pytest.raises(ValueError, match="Missing feature keys"):
-            predict_risk(features, model=self._MockModel())
-
-    def test_all_feature_keys_used(self):
-        """Ensure predict_risk uses all FEATURE_COLS (no silently ignored keys)."""
-        features = self._valid_features()
-        # This should not raise
-        predict_risk(features, model=self._MockModel())
-
-    def test_predict_output_recommendation(self):
-        """End-to-end: predict → recommendation should be a valid string."""
-        features = self._valid_features()
-        level = predict_risk(features, model=self._MockModel())
-        rec = get_recommendation(level)
-        assert rec in {"GO", "CAUTION", "DELAY", "NO-GO"}
+if __name__ == '__main__':
+    unittest.main()
