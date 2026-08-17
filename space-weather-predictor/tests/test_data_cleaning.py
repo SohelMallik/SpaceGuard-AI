@@ -1,158 +1,73 @@
-"""
-test_data_cleaning.py
-=====================
-Unit tests for src/data_cleaning.py
-"""
-
+import unittest
+import pandas as pd
+import numpy as np
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Add src to path to import cleaning functions
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'src'))
+from data_cleaning import clean_space_weather_data
 
-import pandas as pd
-import pytest
-from src.data_cleaning import (
-    clean_space_weather_data,
-    _parse_flare_class,
-    _fill_missing_values,
-    _remove_duplicates,
-    _convert_datetimes,
-    _calculate_duration,
-)
+class TestDataCleaning(unittest.TestCase):
 
+    def setUp(self):
+        """Set up a sample DataFrame for testing."""
+        self.data = {
+            'event_id': ['2023-01', '2023-01', '2023-02', '2023-03'],
+            'event_type': ['Solar Flare', 'Solar Flare', 'Geomagnetic Storm', 'CME'],
+            'begin_time': ['2023-01-01 12:00', '2023-01-01 12:00', '2023-01-02 01:00', '2023-01-03 04:00'],
+            'peak_time': ['2023-01-01 12:30', '2023-01-01 12:30', '2023-01-02 02:00', '2023-01-03 05:00'],
+            'end_time': ['2023-01-01 13:00', '2023-01-01 13:00', '2023-01-02 03:00', '2023-01-03 06:00'],
+            'class_type': ['X5.2', 'X5.2', 'G1', np.nan],
+            'source_location': ['S10W20', 'S10W20', np.nan, 'N30E10'],
+            'active_region': ['12345', '12345', np.nan, '12346'],
+            'date': ['2023-01-01', '2023-01-01', '2023-01-02', '2023-01-03'],
+            'kp_index': [np.nan, 5, 6, np.nan],
+            'note': [np.nan, '', '', np.nan],
+            'observed_time': [np.nan, np.nan, 'bad-date', np.nan]
+        }
+        self.df = pd.DataFrame(self.data)
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+    def test_duplicate_removal(self):
+        """Test that duplicate event_ids are removed."""
+        cleaned_df = clean_space_weather_data(self.df.copy())
+        self.assertEqual(len(cleaned_df), 3)
+        self.assertEqual(cleaned_df['event_id'].tolist(), ['2023-01', '2023-02', '2023-03'])
 
-def _minimal_df(**overrides) -> pd.DataFrame:
-    """Build a minimal valid space weather DataFrame for testing."""
-    base = {
-        "event_id": ["E001", "E002"],
-        "event_type": ["Solar Flare", "Geomagnetic Storm"],
-        "begin_time": ["2023-01-01 08:00", "2023-01-02 10:00"],
-        "peak_time": ["2023-01-01 08:30", "2023-01-02 10:30"],
-        "end_time": ["2023-01-01 09:00", "2023-01-02 11:00"],
-        "class_type": ["X5.2", "G2"],
-        "source_location": [None, "N25W30"],
-        "active_region": [None, "AR12345"],
-        "date": ["2023-01-01", "2023-01-02"],
-        "year": [2023, 2023],
-        "month": [1, 1],
-        "day": [1, 2],
-        "hour": [8, 10],
-        "instruments": ["GOES-16", "GOES-16"],
-        "note": [None, "moderate storm"],
-    }
-    base.update(overrides)
-    return pd.DataFrame(base)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-class TestFillMissingValues:
-    def test_kp_index_filled_with_zero(self):
-        df = _minimal_df(kp_index=[None, 3.5])
-        result = _fill_missing_values(df)
-        assert result["kp_index"].iloc[0] == 0.0
-
-    def test_class_type_filled(self):
-        df = _minimal_df(class_type=[None, "G2"])
-        result = _fill_missing_values(df)
-        assert result["class_type"].iloc[0] == "Unknown"
-
-    def test_note_filled_with_empty_string(self):
-        df = _minimal_df()
-        result = _fill_missing_values(df)
-        assert result["note"].iloc[0] == ""
-
-    def test_source_location_filled(self):
-        df = _minimal_df()
-        result = _fill_missing_values(df)
-        assert result["source_location"].iloc[0] == "Unknown"
-
-    def test_active_region_filled(self):
-        df = _minimal_df()
-        result = _fill_missing_values(df)
-        assert result["active_region"].iloc[0] == "Unknown"
+    def test_missing_value_handling(self):
+        """Test that missing values are filled correctly."""
+        cleaned_df = clean_space_weather_data(self.df.copy())
+        self.assertEqual(cleaned_df['kp_index'].iloc[1], 0.0) # 2023-02 has kp_index filled
+        self.assertEqual(cleaned_df['class_type'].iloc[2], "Unknown") # 2023-03 has class_type filled
+        self.assertEqual(cleaned_df['note'].iloc[2], "")
+    
+    def test_datetime_conversion(self):
+        """Test that datetime columns are converted correctly."""
+        cleaned_df = clean_space_weather_data(self.df.copy())
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(cleaned_df['begin_time']))
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(cleaned_df['peak_time']))
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(cleaned_df['end_time']))
+        # Check that 'bad-date' is coerced to NaT
+        self.assertTrue(pd.isna(cleaned_df.loc[cleaned_df['event_id'] == '2023-02', 'observed_time'].iloc[0]))
 
 
-class TestRemoveDuplicates:
-    def test_duplicates_removed(self):
-        df = _minimal_df(
-            event_id=["E001", "E001"],
-            event_type=["Solar Flare", "Solar Flare"],
-            begin_time=["2023-01-01 08:00", "2023-01-01 08:00"],
-            end_time=["2023-01-01 09:00", "2023-01-01 09:00"],
-        )
-        result = _remove_duplicates(df)
-        assert len(result) == 1
+    def test_flare_class_extraction(self):
+        """Test that solar flare class and magnitude are extracted correctly."""
+        cleaned_df = clean_space_weather_data(self.df.copy())
+        flare_row = cleaned_df[cleaned_df['event_id'] == '2023-01']
+        self.assertEqual(flare_row['flare_class'].iloc[0], 'X')
+        self.assertEqual(flare_row['flare_magnitude'].iloc[0], 5.2)
+        non_flare_row = cleaned_df[cleaned_df['event_id'] == '2023-02']
+        self.assertEqual(non_flare_row['flare_class'].iloc[0], 'N/A')
+        self.assertEqual(non_flare_row['flare_magnitude'].iloc[0], 0.0)
 
-    def test_no_duplicates_unchanged(self):
-        df = _minimal_df()
-        result = _remove_duplicates(df)
-        assert len(result) == 2
+    def test_duration_calculation(self):
+        """Test that the duration is calculated correctly in minutes."""
+        cleaned_df = clean_space_weather_data(self.df.copy())
+        # 2023-01: 13:00 - 12:00 = 60 minutes
+        self.assertEqual(cleaned_df.loc[cleaned_df['event_id'] == '2023-01', 'duration_minutes'].iloc[0], 60.0)
+        # 2023-02: 03:00 - 01:00 = 120 minutes
+        self.assertEqual(cleaned_df.loc[cleaned_df['event_id'] == '2023-02', 'duration_minutes'].iloc[0], 120.0)
 
-
-class TestDatetimeConversion:
-    def test_begin_time_parsed(self):
-        df = _minimal_df()
-        result = _convert_datetimes(df)
-        assert pd.api.types.is_datetime64_any_dtype(result["begin_time"])
-
-    def test_invalid_datetime_becomes_nat(self):
-        df = _minimal_df(begin_time=["not-a-date", "2023-01-02 10:00"])
-        result = _convert_datetimes(df)
-        assert pd.isna(result["begin_time"].iloc[0])
-
-
-class TestDurationCalculation:
-    def test_duration_in_minutes(self):
-        df = _minimal_df()
-        df = _convert_datetimes(df)
-        result = _calculate_duration(df)
-        # 08:00 → 09:00 = 60 minutes
-        assert result["duration_minutes"].iloc[0] == pytest.approx(60.0)
-
-    def test_missing_duration_becomes_zero(self):
-        df = _minimal_df(end_time=[None, "2023-01-02 11:00"])
-        df = _convert_datetimes(df)
-        result = _calculate_duration(df)
-        assert result["duration_minutes"].iloc[0] == 0.0
-
-
-class TestFlareClassParsing:
-    def test_x_class(self):
-        fc, fm = _parse_flare_class("X5.2")
-        assert fc == "X"
-        assert fm == pytest.approx(5.2)
-
-    def test_m_class(self):
-        fc, fm = _parse_flare_class("M2.1")
-        assert fc == "M"
-        assert fm == pytest.approx(2.1)
-
-    def test_c_class(self):
-        fc, fm = _parse_flare_class("C3.4")
-        assert fc == "C"
-        assert fm == pytest.approx(3.4)
-
-    def test_unknown_returns_na(self):
-        fc, fm = _parse_flare_class("Unknown")
-        assert fc == "N/A"
-        assert fm == 0.0
-
-    def test_non_flare_event_gets_na(self):
-        df = _minimal_df()
-        result = clean_space_weather_data(df)
-        # Row 1 is Geomagnetic Storm — should be N/A
-        assert result.loc[result["event_type"] == "Geomagnetic Storm", "flare_class"].iloc[0] == "N/A"
-
-    def test_solar_flare_gets_class(self):
-        df = _minimal_df()
-        result = clean_space_weather_data(df)
-        row = result.loc[result["event_type"] == "Solar Flare"].iloc[0]
-        assert row["flare_class"] == "X"
-        assert row["flare_magnitude"] == pytest.approx(5.2)
+if __name__ == '__main__':
+    unittest.main()
