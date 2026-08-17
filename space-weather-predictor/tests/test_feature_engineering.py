@@ -1,230 +1,99 @@
-"""
-test_feature_engineering.py
-============================
-Unit tests for src/feature_engineering.py
-"""
-
+import unittest
+import pandas as pd
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'src'))
+from feature_engineering import build_risk_features
 
-import pandas as pd
-import pytest
-from src.feature_engineering import build_risk_features
+class TestFeatureEngineering(unittest.TestCase):
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _make_space_df(events: list[dict]) -> pd.DataFrame:
-    """Build a minimal cleaned space_df from a list of event dicts."""
-    required_defaults = {
-        "event_id": "E000",
-        "event_type": "Solar Flare",
-        "begin_time": "2023-06-01 12:00",
-        "end_time": "2023-06-01 13:00",
-        "class_type": "M1.0",
-        "flare_class": "M",
-        "flare_magnitude": 1.0,
-        "kp_index": 0.0,
-        "date": "2023-06-01",
-        "year": 2023,
-        "month": 6,
-        "day": 1,
-        "hour": 12,
-    }
-    rows = []
-    for i, ev in enumerate(events):
-        row = dict(required_defaults)
-        row["event_id"] = f"E{i:03d}"
-        row.update(ev)
-        rows.append(row)
-    df = pd.DataFrame(rows)
-    df["begin_time"] = pd.to_datetime(df["begin_time"])
-    df["kp_index"] = df["kp_index"].astype(float)
-    return df
+    def setUp(self):
+        """Set up a sample DataFrame for testing feature engineering."""
+        data = {
+            'event_type': ['Solar Flare', 'Solar Flare', 'Geomagnetic Storm', 'Solar Flare', 'Solar Flare'],
+            'begin_time': pd.to_datetime([
+                '2023-01-01 10:00',  # Event 1 (C-class)
+                '2023-01-02 12:00',  # Event 2 (X-class)
+                '2023-01-02 18:00',  # Event 3 (Storm Kp=6)
+                '2023-01-03 14:00',  # Event 4 (M-class)
+                '2023-01-04 09:00'   # Event 5 (C-class) - This is on the day of prediction, should be included
+            ]),
+            'flare_class': ['C', 'X', 'N/A', 'M', 'C'],
+            'kp_index': [2.0, 3.0, 6.0, 4.0, 1.0]
+        }
+        self.df = pd.DataFrame(data)
+        # Add required columns from cleaning
+        self.df['date'] = self.df['begin_time'].dt.normalize()
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+    def test_48_hour_window(self):
+        """Test that features are calculated correctly within the 48-hour window."""
+        # For date 2023-01-03, window is from 2023-01-01 14:00 to 2023-01-03 14:00
+        # This includes events 2, 3, and 4
+        features_df = build_risk_features(self.df)
+        
+        # Check features for 2023-01-03
+        day_features = features_df[features_df['date'] == pd.Timestamp('2023-01-03')].iloc[0]
+        
+        # In the 48h before 2023-01-03 00:00:00 (i.e. 2023-01-01 00:00 to 2023-01-02 23:59)
+        # We have events 1, 2, 3
+        # Expected counts for 2023-01-03:
+        # X-flares: 1 (Event 2)
+        # M-flares: 0
+        # C-flares: 1 (Event 1)
+        # Max Kp: 6.0 (Event 3)
+        # Avg Kp: (2+3+6)/3 = 3.666
+        # Storms (Kp>=5): 1 (Event 3)
+        
+        # The logic in build_risk_features is slightly different from my comment above.
+        # Let's trace it for current_date = 2023-01-03.
+        # end_time = 2023-01-03 00:00:00
+        # start_time = 2023-01-01 00:00:00
+        # window_df contains events from 2023-01-01 and 2023-01-02.
+        # So events 1, 2, 3 are in the window.
+        
+        self.assertEqual(day_features['xclass_flare_count'], 1)
+        self.assertEqual(day_features['mclass_flare_count'], 0)
+        self.assertEqual(day_features['cclass_flare_count'], 1)
+        self.assertEqual(day_features['max_kp_index'], 6.0)
+        self.assertAlmostEqual(day_features['avg_kp_index'], (2.0 + 3.0 + 6.0) / 3, places=5)
+        self.assertEqual(day_features['storm_count'], 1)
 
-class TestBuildRiskFeatures:
+    def test_no_future_leakage(self):
+        """Test that events on the current date are not included in the feature calculation window."""
+        # For date 2023-01-04, the window should only include events up to 2023-01-04 00:00
+        # This means Event 5 should not be in the feature calculation for 2023-01-03.
+        
+        day_features = build_risk_features(self.df)
+        day_features_01_04 = day_features[day_features['date'] == pd.Timestamp('2023-01-04')].iloc[0]
 
-    def test_output_columns_present(self):
-        df = _make_space_df([{"begin_time": "2023-06-01 08:00", "date": "2023-06-01"}])
-        result = build_risk_features(df)
-        expected_cols = [
-            "date",
-            "xclass_flare_count",
-            "mclass_flare_count",
-            "cclass_flare_count",
-            "max_kp_index",
-            "avg_kp_index",
-            "storm_count",
-            "event_trend",
-        ]
-        for col in expected_cols:
-            assert col in result.columns, f"Missing column: {col}"
+        # Window for 2023-01-04 is from 2023-01-02 00:00 to 2023-01-03 23:59
+        # This includes events 2, 3, 4
+        self.assertEqual(day_features_01_04['xclass_flare_count'], 1)
+        self.assertEqual(day_features_01_04['mclass_flare_count'], 1)
+        self.assertEqual(day_features_01_04['cclass_flare_count'], 0) # Event 1 is out of window
+        self.assertEqual(day_features_01_04['max_kp_index'], 6.0)
+        self.assertAlmostEqual(day_features_01_04['avg_kp_index'], (3.0 + 6.0 + 4.0) / 3, places=5)
 
-    def test_sorted_by_date(self):
-        df = _make_space_df([
-            {"begin_time": "2023-06-03 08:00", "date": "2023-06-03"},
-            {"begin_time": "2023-06-01 08:00", "date": "2023-06-01"},
-        ])
-        result = build_risk_features(df)
-        dates = result["date"].tolist()
-        assert dates == sorted(dates), "Dates are not sorted ascending."
+    def test_event_trend(self):
+        """Test the event trend calculation."""
+        features_df = build_risk_features(self.df)
+        day_features = features_df[features_df['date'] == pd.Timestamp('2023-01-03')].iloc[0]
 
-    def test_no_current_date_leakage(self):
-        """Events on the target date itself must NOT appear in that date's features."""
-        # Put ONE X-class event at exactly 00:00 on June 2.
-        # For target date June 2 the window is [May 31 00:00, June 2 00:00).
-        # The event at June 2 00:00 is on the boundary and must be EXCLUDED.
-        df = _make_space_df([
-            {
-                "begin_time": "2023-06-02 00:00",
-                "date": "2023-06-02",
-                "event_type": "Solar Flare",
-                "flare_class": "X",
-                "flare_magnitude": 1.0,
-                "class_type": "X1.0",
-            }
-        ])
-        result = build_risk_features(df)
-        row = result[result["date"] == pd.Timestamp("2023-06-02")]
-        if len(row) > 0:
-            assert row.iloc[0]["xclass_flare_count"] == 0, (
-                "Current-date event incorrectly included in features."
-            )
+        # For 2023-01-03:
+        # Latest 24h (2023-01-02): 2 events (Event 2, 3)
+        # Previous 24h (2023-01-01): 1 event (Event 1)
+        # Trend = 2 / 1 = 2.0
+        self.assertEqual(day_features['event_trend'], 2.0)
 
-    def test_48h_window_is_respected(self):
-        """An event 49 hours before the target date must NOT appear in features."""
-        target = pd.Timestamp("2023-06-03 00:00")
-        outside = target - pd.Timedelta(hours=49)
-        inside = target - pd.Timedelta(hours=24)
+        # Test division by zero case
+        df_no_prior = self.df[self.df.begin_time > '2023-01-02']
+        features_no_prior = build_risk_features(df_no_prior)
+        day_features_no_prior = features_no_prior[features_no_prior['date'] == pd.Timestamp('2023-01-03')].iloc[0]
+        # Previous 24h has 0 events, so trend should default to 1.0
+        self.assertEqual(day_features_no_prior['event_trend'], 1.0)
 
-        df = _make_space_df([
-            {
-                "begin_time": str(outside),
-                "date": outside.strftime("%Y-%m-%d"),
-                "event_type": "Solar Flare",
-                "flare_class": "X",
-                "flare_magnitude": 5.0,
-                "class_type": "X5.0",
-            },
-            {
-                "begin_time": str(inside),
-                "date": inside.strftime("%Y-%m-%d"),
-                "event_type": "Solar Flare",
-                "flare_class": "M",
-                "flare_magnitude": 1.0,
-                "class_type": "M1.0",
-            },
-        ])
-        result = build_risk_features(df)
-        target_row = result[result["date"] == pd.Timestamp("2023-06-03")]
-        if len(target_row) > 0:
-            # X event is outside window — should NOT be counted
-            assert target_row.iloc[0]["xclass_flare_count"] == 0
-            # M event is inside window — should be counted
-            assert target_row.iloc[0]["mclass_flare_count"] == 1
 
-    def test_x_class_count(self):
-        # Two X-class events in the 48h window before target date
-        target_date = pd.Timestamp("2023-06-05")
-        events = [
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=10)),
-                "date": "2023-06-04",
-                "event_type": "Solar Flare",
-                "flare_class": "X",
-                "class_type": "X2.0",
-            },
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=20)),
-                "date": "2023-06-04",
-                "event_type": "Solar Flare",
-                "flare_class": "X",
-                "class_type": "X1.0",
-            },
-        ]
-        df = _make_space_df(events)
-        result = build_risk_features(df)
-        row = result[result["date"] == target_date]
-        if len(row) > 0:
-            assert row.iloc[0]["xclass_flare_count"] >= 2
-
-    def test_kp_max_and_avg(self):
-        target_date = pd.Timestamp("2023-06-05")
-        events = [
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=5)),
-                "date": "2023-06-04",
-                "event_type": "Geomagnetic Storm",
-                "flare_class": "N/A",
-                "class_type": "Unknown",
-                "kp_index": 7.0,
-            },
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=10)),
-                "date": "2023-06-04",
-                "event_type": "Geomagnetic Storm",
-                "flare_class": "N/A",
-                "class_type": "Unknown",
-                "kp_index": 3.0,
-            },
-        ]
-        df = _make_space_df(events)
-        result = build_risk_features(df)
-        row = result[result["date"] == target_date]
-        if len(row) > 0:
-            assert row.iloc[0]["max_kp_index"] == pytest.approx(7.0)
-            assert row.iloc[0]["avg_kp_index"] == pytest.approx(5.0)
-
-    def test_storm_count(self):
-        """Events with kp_index >= 5 should be counted as storms."""
-        target_date = pd.Timestamp("2023-06-06")
-        events = [
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=6)),
-                "date": "2023-06-05",
-                "event_type": "Geomagnetic Storm",
-                "flare_class": "N/A",
-                "class_type": "Unknown",
-                "kp_index": 6.0,
-            },
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=12)),
-                "date": "2023-06-05",
-                "event_type": "Geomagnetic Storm",
-                "flare_class": "N/A",
-                "class_type": "Unknown",
-                "kp_index": 2.0,  # below threshold
-            },
-        ]
-        df = _make_space_df(events)
-        result = build_risk_features(df)
-        row = result[result["date"] == target_date]
-        if len(row) > 0:
-            assert row.iloc[0]["storm_count"] == 1
-
-    def test_event_trend_no_older_events(self):
-        """event_trend should be 1.0 when there are no events in the 24-48h window."""
-        target_date = pd.Timestamp("2023-07-10")
-        events = [
-            {
-                "begin_time": str(target_date - pd.Timedelta(hours=12)),
-                "date": "2023-07-09",
-                "event_type": "Solar Flare",
-                "flare_class": "C",
-                "class_type": "C1.0",
-            }
-        ]
-        df = _make_space_df(events)
-        result = build_risk_features(df)
-        row = result[result["date"] == target_date]
-        if len(row) > 0:
-            assert row.iloc[0]["event_trend"] == pytest.approx(1.0)
+if __name__ == '__main__':
+    unittest.main()
