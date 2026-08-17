@@ -1,142 +1,80 @@
-"""
-risk_scoring.py
-===============
-Educational deterministic risk engine for the Space Weather Launch Safety Predictor.
-
-The weighting scheme is an EDUCATIONAL SIMPLIFICATION and is NOT an operational
-NASA launch-safety or space-weather forecasting model.
-
-Usage:
-    from src.risk_scoring import calculate_risk_score, apply_risk_scoring
-    risk_df = apply_risk_scoring(risk_features_df)
-"""
-
 import pandas as pd
 
-# ---------------------------------------------------------------------------
-# Risk score weights (educational simplified model)
-# ---------------------------------------------------------------------------
-WEIGHT_X_CLASS: float = 40.0   # max contribution from X-class flares
-WEIGHT_M_CLASS: float = 25.0   # max contribution from M-class flares
-WEIGHT_KP: float = 20.0        # max contribution from Kp index
-WEIGHT_TREND: float = 15.0     # max contribution from event trend
-MAX_SCORE: float = 100.0
-MAX_KP: float = 9.0            # planetary Kp scale top
-
-# Risk level thresholds
-LEVEL_LOW = 20.0
-LEVEL_MODERATE = 40.0
-LEVEL_HIGH = 60.0
-# >= HIGH → EXTREME
-
-# Recommendation mapping
-RECOMMENDATION_MAP: dict[str, str] = {
-    "LOW": "GO",
-    "MODERATE": "CAUTION",
-    "HIGH": "DELAY",
-    "EXTREME": "NO-GO",
-}
-
-
 def calculate_risk_score(row: pd.Series) -> float:
-    """Calculate a 0–100 educational launch risk score for a single feature row.
+    """Calculates the risk score for a given row of features."""
+    x_score = min(row.get('xclass_flare_count', 0) * 40, 40)
+    m_score = min(row.get('mclass_flare_count', 0) * 25, 25)
+    kp_score = (row.get('max_kp_index', 0) / 9) * 20
+    trend_score = min(max((row.get('event_trend', 1) - 1) * 15, 0), 15)
+    
+    total_score = x_score + m_score + kp_score + trend_score
+    return min(total_score, 100)
 
-    Formula
-    -------
-    ::
-
-        x_score     = min(xclass_flare_count × 40, 40)
-        m_score     = min(mclass_flare_count × 25, 25)
-        kp_score    = (max_kp_index / 9) × 20
-        trend_score = min(max((event_trend - 1) × 15, 0), 15)
-        total       = x_score + m_score + kp_score + trend_score
-        final       = min(total, 100)
-
-    Parameters
-    ----------
-    row:
-        A single row from ``risk_features_df``.
-
-    Returns
-    -------
-    float
-        Risk score in the range [0, 100].
-    """
-    x_score = min(float(row["xclass_flare_count"]) * 40.0, 40.0)
-    m_score = min(float(row["mclass_flare_count"]) * 25.0, 25.0)
-    kp_score = (float(row["max_kp_index"]) / MAX_KP) * WEIGHT_KP
-    trend_score = min(max((float(row["event_trend"]) - 1.0) * 15.0, 0.0), 15.0)
-
-    total = x_score + m_score + kp_score + trend_score
-    return float(min(total, MAX_SCORE))
-
-
-def score_to_risk_level(score: float) -> str:
-    """Convert a numeric risk score to a risk level label.
-
-    Boundaries
-    ----------
-    [0,  20)  → LOW
-    [20, 40)  → MODERATE
-    [40, 60)  → HIGH
-    [60, 100] → EXTREME
-    """
-    if score < LEVEL_LOW:
+def assign_risk_level(score: float) -> str:
+    """Assigns a risk level based on the score."""
+    if score <= 20:
         return "LOW"
-    elif score < LEVEL_MODERATE:
+    elif score <= 40:
         return "MODERATE"
-    elif score < LEVEL_HIGH:
+    elif score <= 60:
         return "HIGH"
     else:
         return "EXTREME"
 
-
-def get_recommendation(risk_level: str) -> str:
-    """Map a risk level label to a launch recommendation."""
-    return RECOMMENDATION_MAP.get(risk_level, "UNKNOWN")
-
-
 def apply_risk_scoring(risk_features_df: pd.DataFrame) -> pd.DataFrame:
-    """Add risk_score, risk_level, and recommendation columns to risk_features_df.
-
-    Parameters
-    ----------
-    risk_features_df:
-        Output from :func:`src.feature_engineering.build_risk_features`.
-
-    Returns
-    -------
-    pd.DataFrame
-        Copy of the input with three additional columns:
-        ``risk_score``, ``risk_level``, ``recommendation``.
     """
-    df = risk_features_df.copy()
-    df["risk_score"] = df.apply(calculate_risk_score, axis=1)
-    df["risk_level"] = df["risk_score"].apply(score_to_risk_level)
-    df["recommendation"] = df["risk_level"].apply(get_recommendation)
+    Applies risk scoring and level assignment to the features DataFrame.
 
-    # -----------------------------------------------------------------------
-    # Summary statistics
-    # -----------------------------------------------------------------------
-    print("\n=== Risk Scoring ===")
+    Args:
+        risk_features_df: DataFrame with historical risk features.
 
-    level_counts = df["risk_level"].value_counts()
-    print("\n  Risk Level Distribution:")
-    for level in ["LOW", "MODERATE", "HIGH", "EXTREME"]:
-        n = level_counts.get(level, 0)
-        pct = n / len(df) * 100 if len(df) > 0 else 0.0
-        rec = RECOMMENDATION_MAP.get(level, "?")
-        print(f"    {level:<10} ({rec:<8}): {n:>5}  ({pct:.1f}%)")
+    Returns:
+        DataFrame with 'risk_score' and 'risk_level' columns added.
+    """
+    risk_features_df['risk_score'] = risk_features_df.apply(calculate_risk_score, axis=1)
+    risk_features_df['risk_level'] = risk_features_df['risk_score'].apply(assign_risk_level)
+    
+    print("\n--- Risk Scoring Complete ---")
+    print("\nRisk Level Distribution:\n", risk_features_df['risk_level'].value_counts())
+    print("\nRisk Score Statistics:\n", risk_features_df['risk_score'].describe())
+    print("\nTop 5 Highest-Risk Dates:\n", risk_features_df.nlargest(5, 'risk_score'))
+    
+    return risk_features_df
 
-    scores = df["risk_score"]
-    print(f"\n  Risk Score Statistics:")
-    print(f"    Mean   : {scores.mean():.2f}")
-    print(f"    Median : {scores.median():.2f}")
-    print(f"    Min    : {scores.min():.2f}")
-    print(f"    Max    : {scores.max():.2f}")
+if __name__ == '__main__':
+    from feature_engineering import build_risk_features
+    from data_loader import load_dataset
+    from data_cleaning import clean_space_weather_data
+    from pathlib import Path
 
-    print("\n  Top 5 Highest-Risk Dates:")
-    top5 = df.nlargest(5, "risk_score")[["date", "risk_score", "risk_level"]]
-    print(top5.to_string(index=False))
+    # Ensure a dummy file exists for testing
+    data_path = Path("space-weather-predictor/data")
+    file_path = data_path / "space_weather_unified.csv"
+    if not file_path.exists():
+        print("Creating a dummy space_weather_unified.csv for risk scoring testing.")
+        data_path.mkdir(exist_ok=True)
+        dummy_data = {
+            'event_id': [f'2023-{i:02d}' for i in range(1, 40)],
+            'event_type': ['Solar Flare', 'CME', 'Geomagnetic Storm', 'High Speed Stream'] * 10,
+            'begin_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24:02d}:00:00' for i in range(39)]),
+            'peak_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24+1:02d}:00:00' for i in range(39)]),
+            'end_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24+2:02d}:00:00' for i in range(39)]),
+            'class_type': ['X1.0', 'C-type', 'G1', '', 'M2.0', 'C3.0'] * 6 + ['X1.0', 'C-type', 'G1'],
+            'source_location': ['S10W20'] * 39,
+            'active_region': ['12345'] * 39,
+            'date': pd.to_datetime([f'2023-01-{(i%5)+1:02d}' for i in range(39)]),
+            'kp_index': [5, 0, 6, 0, 8, 2] * 6 + [5,0,6],
+            'note': [''] * 39,
+            'observed_time': [None] * 39,
+            'source': [''] * 39
+        }
+        dummy_df = pd.DataFrame(dummy_data)
+        dummy_df.to_csv(file_path, index=False)
 
-    return df
+    raw_df = load_dataset()
+    if raw_df is not None:
+        cleaned_df = clean_space_weather_data(raw_df)
+        risk_features = build_risk_features(cleaned_df)
+        scored_df = apply_risk_scoring(risk_features)
+        print("\nScored DataFrame:")
+        print(scored_df.head())
