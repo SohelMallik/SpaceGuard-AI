@@ -1,102 +1,102 @@
-"""
-model_evaluation.py
-===================
-Evaluates the trained Random Forest classifier and saves a text report.
-
-Usage:
-    from src.model_evaluation import evaluate_model
-    evaluate_model(model, X_test, y_test, y_pred, feature_cols)
-"""
-
-from pathlib import Path
 import pandas as pd
-import numpy as np
 from sklearn.metrics import accuracy_score, classification_report
+from pathlib import Path
 
-REPORTS_DIR: Path = Path(__file__).resolve().parent.parent / "outputs" / "reports"
-
-
-def evaluate_model(
-    model,
-    X_train: np.ndarray,
-    X_test: np.ndarray,
-    y_train: np.ndarray,
-    y_test: np.ndarray,
-    y_pred,
-    feature_cols: list[str],
-) -> dict:
-    """Evaluate model performance and save a text report.
-
-    Parameters
-    ----------
-    model:
-        Fitted :class:`~sklearn.ensemble.RandomForestClassifier`.
-    X_train, X_test, y_train, y_test:
-        Training and test arrays.
-    y_pred:
-        Predictions on X_test from :func:`src.model_training.train_model`.
-    feature_cols:
-        List of feature column names (same order as X_train columns).
-
-    Returns
-    -------
-    dict
-        ``{"accuracy": float, "report": str, "feature_importances": pd.Series}``
+def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, feature_cols: list):
     """
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    Evaluates the trained model and prints the results.
 
-    print("\n=== Model Evaluation ===")
-    print(f"  Training shape : {X_train.shape}")
-    print(f"  Testing shape  : {X_test.shape}")
+    Args:
+        model: The trained RandomForestClassifier model.
+        X_test: The test features.
+        y_test: The test target variable.
+        feature_cols: The list of feature columns used for training.
+    """
+    if model is None or X_test.empty or y_test.empty:
+        print("Cannot evaluate model: model or test data is missing.")
+        return
 
-    if len(y_test) == 0 or len(y_pred) == 0:
-        print("  WARNING: Test set is empty — skipping accuracy calculation.")
-        results = {
-            "accuracy": None,
-            "report": "Test set empty — no evaluation performed.",
-            "feature_importances": pd.Series(
-                model.feature_importances_, index=feature_cols
-            ).sort_values(ascending=False),
+    print("\n--- Model Evaluation ---")
+    y_pred = model.predict(X_test)
+
+    # Accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Test Accuracy: {accuracy:.4f}")
+
+    # Classification Report
+    report = classification_report(y_test, y_pred, zero_division=0)
+    print("\nClassification Report:\n", report)
+
+    # Feature Importances
+    importances = pd.DataFrame({
+        'feature': feature_cols,
+        'importance': model.feature_importances_
+    }).sort_values('importance', ascending=False)
+    print("\nFeature Importances:\n", importances)
+
+    # Save report
+    report_path = Path("space-weather-predictor/outputs/reports")
+    report_path.mkdir(exist_ok=True)
+    with open(report_path / "model_evaluation_report.txt", "w") as f:
+        f.write("Model Evaluation Report\n")
+        f.write("="*25 + "\n\n")
+        f.write(f"Test Accuracy: {accuracy:.4f}\n\n")
+        f.write("Classification Report:\n")
+        f.write(report)
+        f.write("\n\nFeature Importances:\n")
+        f.write(importances.to_string())
+    
+    print(f"\nEvaluation report saved to {report_path / 'model_evaluation_report.txt'}")
+
+
+if __name__ == '__main__':
+    from feature_engineering import build_risk_features
+    from data_loader import load_dataset
+    from data_cleaning import clean_space_weather_data
+    from risk_scoring import apply_risk_scoring
+    from model_training import train_model
+    
+    # This setup is duplicated from model_training.py for standalone execution
+    data_path = Path("space-weather-predictor/data")
+    file_path = data_path / "space_weather_unified.csv"
+    if not file_path.exists():
+        print("Creating a dummy space_weather_unified.csv for model evaluation testing.")
+        data_path.mkdir(exist_ok=True)
+        dates = pd.to_datetime([f'2024-12-{(i%31)+1:02d}' for i in range(20)] + [f'2025-01-{(i%28)+1:02d}' for i in range(20)])
+        dummy_data = {
+            'event_id': [f'2024-{i:02d}' for i in range(1, 41)],
+            'event_type': ['Solar Flare', 'CME', 'Geomagnetic Storm', 'High Speed Stream'] * 10,
+            'begin_time': dates,
+            'peak_time': dates + pd.Timedelta(hours=1),
+            'end_time': dates + pd.Timedelta(hours=2),
+            'class_type': ['X1.0', 'C-type', 'G1', '', 'M2.0', 'C3.0'] * 6 + ['X1.0', 'C-type', 'G1','','',''],
+            'source_location': ['S10W20'] * 40,
+            'active_region': ['12345'] * 40,
+            'date': dates,
+            'kp_index': [5, 0, 6, 0, 8, 2] * 6 + [5,0,6,0],
+            'note': [''] * 40,
+            'observed_time': [None] * 40,
+            'source': [''] * 40
         }
-    else:
-        accuracy = accuracy_score(y_test, y_pred)
-        report = classification_report(y_test, y_pred, zero_division=0)
+        dummy_df = pd.DataFrame(dummy_data)
+        dummy_df.to_csv(file_path, index=False)
 
-        print(f"  Test Accuracy  : {accuracy:.4f}  ({accuracy * 100:.2f}%)")
-        print(f"\n  Classification Report:\n{report}")
+    raw_df = load_dataset()
+    if raw_df is not None:
+        cleaned_df = clean_space_weather_data(raw_df)
+        risk_features_df = build_risk_features(cleaned_df)
+        scored_df = apply_risk_scoring(risk_features_df)
+        
+        scored_df['date'] = pd.to_datetime(scored_df['date'])
 
-        fi_series = pd.Series(model.feature_importances_, index=feature_cols).sort_values(
-            ascending=False
-        )
-        print("  Feature Importances (high → low):")
-        for feat, imp in fi_series.items():
-            print(f"    {feat:<30} {imp:.4f}")
+        feature_cols = [
+            "xclass_flare_count", "mclass_flare_count", "cclass_flare_count",
+            "max_kp_index", "avg_kp_index", "storm_count", "event_trend"
+        ]
+        
+        model, X_train, y_train, X_test, y_test = train_model(scored_df)
 
-        results = {
-            "accuracy": accuracy,
-            "report": report,
-            "feature_importances": fi_series,
-        }
-
-    # -----------------------------------------------------------------------
-    # Save report to file
-    # -----------------------------------------------------------------------
-    report_path = REPORTS_DIR / "model_evaluation.txt"
-    with open(report_path, "w", encoding="utf-8") as fh:
-        fh.write("Space Weather Launch Safety Predictor — Model Evaluation\n")
-        fh.write("=" * 60 + "\n\n")
-        fh.write(f"Training samples : {X_train.shape[0]}\n")
-        fh.write(f"Testing samples  : {X_test.shape[0]}\n")
-        if results["accuracy"] is not None:
-            fh.write(f"Test Accuracy    : {results['accuracy']:.4f}\n\n")
-            fh.write("Classification Report:\n")
-            fh.write(results["report"] + "\n")
+        if model and not X_test.empty:
+            evaluate_model(model, X_test, y_test, feature_cols)
         else:
-            fh.write("Test Accuracy    : N/A (empty test set)\n\n")
-        fh.write("Feature Importances:\n")
-        for feat, imp in results["feature_importances"].items():
-            fh.write(f"  {feat:<30} {imp:.4f}\n")
-
-    print(f"\n  Evaluation report saved → {report_path}")
-
-    return results
+            print("Skipping evaluation due to missing model or test data.")
