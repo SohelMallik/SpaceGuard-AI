@@ -1,148 +1,108 @@
-"""
-feature_engineering.py
-=======================
-Builds historical 48-hour launch-risk features from the cleaned space_df.
-
-Design: Each row in the output represents a single calendar date.
-Features are computed using ONLY events from the previous 48 hours
-(i.e. [date - 48h, date) — the current date itself is excluded).
-This prevents any future-data leakage.
-
-Usage:
-    from src.feature_engineering import build_risk_features
-    risk_features_df = build_risk_features(space_df)
-"""
-
 import pandas as pd
-import numpy as np
-
+from tqdm import tqdm
 
 def build_risk_features(space_df: pd.DataFrame) -> pd.DataFrame:
-    """Build historical 48-hour risk features for every unique date.
-
-    Data leakage protection
-    -----------------------
-    For each target date D, only events satisfying::
-
-        D - 48h  <=  begin_time  <  D
-
-    are included in feature calculations.
-    The date D itself is never included.
-
-    Parameters
-    ----------
-    space_df:
-        Cleaned DataFrame returned by :func:`src.data_cleaning.clean_space_weather_data`.
-
-    Returns
-    -------
-    pd.DataFrame
-        ``risk_features_df`` with columns:
-        date, xclass_flare_count, mclass_flare_count, cclass_flare_count,
-        max_kp_index, avg_kp_index, storm_count, event_trend.
-        Sorted ascending by date.
     """
-    print("\n=== Feature Engineering ===")
+    Builds historical risk features from the cleaned space weather data.
 
-    # Ensure begin_time is datetime
-    if not pd.api.types.is_datetime64_any_dtype(space_df["begin_time"]):
-        space_df = space_df.copy()
-        space_df["begin_time"] = pd.to_datetime(space_df["begin_time"], errors="coerce")
+    Args:
+        space_df: The cleaned space weather DataFrame.
 
-    # Ensure kp_index exists (default 0.0 if absent)
-    if "kp_index" not in space_df.columns:
-        space_df = space_df.copy()
-        space_df["kp_index"] = 0.0
+    Returns:
+        A DataFrame with historical risk features for each day.
+    """
+    if 'begin_time' not in space_df.columns or not pd.api.types.is_datetime64_any_dtype(space_df['begin_time']):
+        raise ValueError("The 'begin_time' column must be of datetime type.")
 
-    # Work with timezone-naive timestamps
-    space_df = space_df.copy()
-    space_df["begin_time"] = space_df["begin_time"].dt.tz_localize(None)
+    space_df = space_df.set_index('begin_time').sort_index()
+    
+    unique_dates = space_df.index.normalize().unique()
+    
+    features = []
 
-    # Derive a normalized date column for grouping
-    space_df["_event_date"] = space_df["begin_time"].dt.normalize()
+    for current_date in tqdm(unique_dates, desc="Building risk features"):
+        # Define the 48-hour historical window, excluding the current date
+        end_time = current_date
+        start_time = end_time - pd.Timedelta(hours=48)
+        
+        window_df = space_df.loc[start_time:end_time]
+        
+        # Features from the last 48 hours
+        xclass_flare_count = window_df[(window_df['event_type'] == 'Solar Flare') & (window_df['flare_class'] == 'X')].shape[0]
+        mclass_flare_count = window_df[(window_df['event_type'] == 'Solar Flare') & (window_df['flare_class'] == 'M')].shape[0]
+        cclass_flare_count = window_df[(window_df['event_type'] == 'Solar Flare') & (window_df['flare_class'] == 'C')].shape[0]
+        
+        max_kp_index = window_df['kp_index'].max() if not window_df.empty else 0
+        avg_kp_index = window_df['kp_index'].mean() if not window_df.empty else 0
+        storm_count = window_df[window_df['kp_index'] >= 5].shape[0]
 
-    # Determine the full set of dates we will produce features for
-    all_dates = sorted(space_df["_event_date"].dropna().unique())
+        # Event trend calculation
+        latest_24h_end = current_date
+        latest_24h_start = latest_24h_end - pd.Timedelta(hours=24)
+        previous_24h_end = latest_24h_start
+        previous_24h_start = previous_24h_end - pd.Timedelta(hours=24)
 
-    if len(all_dates) == 0:
-        raise ValueError(
-            "No valid dates found in space_df. "
-            "Ensure begin_time was correctly parsed by clean_space_weather_data()."
-        )
+        latest_24h_events = space_df.loc[latest_24h_start:latest_24h_end].shape[0]
+        previous_24h_events = space_df.loc[previous_24h_start:previous_24h_end].shape[0]
 
-    rows: list[dict] = []
-
-    for current_date in all_dates:
-        current_dt = pd.Timestamp(current_date)
-        window_start = current_dt - pd.Timedelta(hours=48)
-        window_end = current_dt  # exclusive — current date NOT included
-
-        mask = (
-            (space_df["begin_time"] >= window_start)
-            & (space_df["begin_time"] < window_end)
-        )
-        window_df = space_df[mask]
-
-        # X / M / C class flare counts
-        solar_mask = window_df["event_type"] == "Solar Flare"
-        solar_df = window_df[solar_mask]
-
-        xclass_count = int(
-            (solar_df["flare_class"] == "X").sum()
-            if "flare_class" in solar_df.columns
-            else 0
-        )
-        mclass_count = int(
-            (solar_df["flare_class"] == "M").sum()
-            if "flare_class" in solar_df.columns
-            else 0
-        )
-        cclass_count = int(
-            (solar_df["flare_class"] == "C").sum()
-            if "flare_class" in solar_df.columns
-            else 0
-        )
-
-        # Kp features
-        kp_values = window_df["kp_index"].dropna()
-        max_kp = float(kp_values.max()) if len(kp_values) > 0 else 0.0
-        avg_kp = float(kp_values.mean()) if len(kp_values) > 0 else 0.0
-
-        # Storm count (Kp >= 5)
-        storm_count = int((kp_values >= 5).sum())
-
-        # Event trend: events in latest 24h vs events in prior 24-48h
-        mid_point = current_dt - pd.Timedelta(hours=24)
-        recent_mask = (space_df["begin_time"] >= mid_point) & (space_df["begin_time"] < window_end)
-        older_mask = (space_df["begin_time"] >= window_start) & (space_df["begin_time"] < mid_point)
-
-        recent_count = int(recent_mask.sum())
-        older_count = int(older_mask.sum())
-
-        if older_count == 0:
-            event_trend = 1.0
+        if previous_24h_events > 0:
+            event_trend = latest_24h_events / previous_24h_events
         else:
-            event_trend = recent_count / older_count
+            event_trend = 1.0 # Avoid division by zero
 
-        rows.append(
-            {
-                "date": current_dt.normalize(),
-                "xclass_flare_count": xclass_count,
-                "mclass_flare_count": mclass_count,
-                "cclass_flare_count": cclass_count,
-                "max_kp_index": max_kp,
-                "avg_kp_index": avg_kp,
-                "storm_count": storm_count,
-                "event_trend": event_trend,
-            }
-        )
+        features.append({
+            'date': current_date,
+            'xclass_flare_count': xclass_flare_count,
+            'mclass_flare_count': mclass_flare_count,
+            'cclass_flare_count': cclass_flare_count,
+            'max_kp_index': max_kp_index,
+            'avg_kp_index': avg_kp_index,
+            'storm_count': storm_count,
+            'event_trend': event_trend
+        })
 
-    risk_features_df = pd.DataFrame(rows).sort_values("date").reset_index(drop=True)
+    risk_features_df = pd.DataFrame(features)
+    risk_features_df['date'] = pd.to_datetime(risk_features_df['date'])
+    risk_features_df = risk_features_df.fillna(0)
+    
+    return risk_features_df.sort_values(by='date').reset_index(drop=True)
 
-    print(f"  Total dates with features : {len(risk_features_df)}")
-    print(f"  Date range : {risk_features_df['date'].min()} → {risk_features_df['date'].max()}")
-    print(f"  X-class events in window  : {risk_features_df['xclass_flare_count'].sum()}")
-    print(f"  M-class events in window  : {risk_features_df['mclass_flare_count'].sum()}")
-    print(f"  Max Kp observed           : {risk_features_df['max_kp_index'].max():.1f}")
-
-    return risk_features_df
+if __name__ == '__main__':
+    from data_loader import load_dataset
+    from data_cleaning import clean_space_weather_data
+    from pathlib import Path
+    
+    # Ensure a dummy file exists for testing
+    data_path = Path("space-weather-predictor/data")
+    file_path = data_path / "space_weather_unified.csv"
+    if not file_path.exists():
+        print("Creating a dummy space_weather_unified.csv for feature engineering testing.")
+        data_path.mkdir(exist_ok=True)
+        dummy_data = {
+            'event_id': [f'2023-{i:02d}' for i in range(1, 40)],
+            'event_type': ['Solar Flare', 'CME', 'Geomagnetic Storm', 'High Speed Stream'] * 10,
+            'begin_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24:02d}:00:00' for i in range(39)]),
+            'peak_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24+1:02d}:00:00' for i in range(39)]),
+            'end_time': pd.to_datetime([f'2023-01-{(i%5)+1:02d}T{i%24+2:02d}:00:00' for i in range(39)]),
+            'class_type': ['X1.0', 'C-type', 'G1', '', 'M2.0', 'C3.0'] * 6 + ['X1.0', 'C-type', 'G1'],
+            'source_location': ['S10W20'] * 39,
+            'active_region': ['12345'] * 39,
+            'date': pd.to_datetime([f'2023-01-{(i%5)+1:02d}' for i in range(39)]),
+            'kp_index': [5, 0, 6, 0, 8, 2] * 6 + [5,0,6],
+            'note': [''] * 39,
+            'observed_time': [None] * 39,
+            'source': [''] * 39
+        }
+        dummy_df = pd.DataFrame(dummy_data)
+        dummy_df.to_csv(file_path, index=False)
+        
+    raw_df = load_dataset()
+    if raw_df is not None:
+        cleaned_df = clean_space_weather_data(raw_df)
+        risk_features = build_risk_features(cleaned_df)
+        print("\nRisk Features DataFrame:")
+        print(risk_features.head())
+        print("\nRisk Features DataFrame Info:")
+        risk_features.info()
+        print("\nRisk Features Description:")
+        print(risk_features.describe())
