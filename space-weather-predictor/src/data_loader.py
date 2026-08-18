@@ -1,108 +1,48 @@
-"""
-data_loader.py
-==============
-Loads the space weather dataset from disk or a remote URL.
-
-Usage:
-    from src.data_loader import load_dataset
-    df = load_dataset()
-"""
-
-from pathlib import Path
 import pandas as pd
+from pathlib import Path
 import requests
 
-# ---------------------------------------------------------------------------
-# Configuration — update DATA_URL if the original source URL changes.
-# ---------------------------------------------------------------------------
-DATA_URL: str = (
-    "https://raw.githubusercontent.com/your-org/space-weather-data/"
-    "main/space_weather_unified.csv"
-)
-DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
-DATA_PATH: Path = DATA_DIR / "space_weather_unified.csv"
+# The URL for the dataset is currently a placeholder.
+# The user should replace this with the actual URL.
+DATA_URL = "https://example.com/space_weather_unified.csv"
+DATA_PATH = Path("space-weather-predictor/data")
+FILE_PATH = DATA_PATH / "space_weather_unified.csv"
 
-REQUIRED_COLUMNS: list[str] = [
-    "event_id",
-    "event_type",
-    "begin_time",
-    "peak_time",
-    "end_time",
-    "class_type",
-    "source_location",
-    "active_region",
-    "date",
-    "year",
-    "month",
-    "day",
-    "hour",
-    "instruments",
-    "note",
-]
-
-
-def _download_dataset(url: str, dest: Path) -> None:
-    """Download the CSV from *url* and save it to *dest*."""
-    print(f"Downloading dataset from:\n  {url}")
-    try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as exc:
-        raise RuntimeError(
-            f"Failed to download dataset from {url}.\n"
-            f"Error: {exc}\n"
-            "Please place space_weather_unified.csv manually in the data/ directory "
-            "or update DATA_URL in src/data_loader.py."
-        ) from exc
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(response.content)
-    print(f"  Saved to {dest}")
-
-
-def _validate_columns(df: pd.DataFrame) -> None:
-    """Raise ValueError if any required column is absent."""
-    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing:
-        raise ValueError(
-            f"Dataset is missing required columns: {missing}\n"
-            f"Available columns: {list(df.columns)}"
-        )
-
-
-def load_dataset(url: str = DATA_URL, path: Path = DATA_PATH) -> pd.DataFrame:
-    """Load the space weather dataset.
-
-    If the CSV already exists at *path* it is used directly.
-    Otherwise the file is downloaded from *url*.
-
-    Parameters
-    ----------
-    url:
-        Remote source URL for the dataset.
-    path:
-        Local path where the CSV is (or will be) stored.
-
-    Returns
-    -------
-    pd.DataFrame
-        Raw dataset with the ``date`` column parsed as datetime.
+def load_dataset():
     """
-    if path.exists():
-        print(f"Using cached {path}")
+    Loads the space weather dataset.
+    Downloads the dataset if it doesn't exist.
+    """
+    if FILE_PATH.exists():
+        print(f"Using cached data from {FILE_PATH}")
     else:
-        _download_dataset(url, path)
+        print(f"Downloading dataset from {DATA_URL}...")
+        DATA_PATH.mkdir(parents=True, exist_ok=True)
+        try:
+            response = requests.get(DATA_URL)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            with open(FILE_PATH, "wb") as f:
+                f.write(response.content)
+            print(f"Dataset downloaded and saved to {FILE_PATH}")
+        except requests.exceptions.RequestException as e:
+            print(f"Error downloading dataset: {e}")
+            return None
 
-    df = pd.read_csv(path, low_memory=False)
-    _validate_columns(df)
+    try:
+        df = pd.read_csv(FILE_PATH, parse_dates=["date"])
+        print("Dataset loaded successfully.")
+        print("Dataset shape:", df.shape)
+        print("Minimum date:", df["date"].min())
+        print("Maximum date:", df["date"].max())
+        print("First three rows:")
+        print(df.head(3))
+        return df
+    except FileNotFoundError:
+        print(f"Error: {FILE_PATH} not found. Please check the data path or download the data.")
+        return None
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        return None
 
-    # Parse date column — keep errors as NaT rather than raising immediately.
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-    print(f"\nDataset loaded:")
-    print(f"  Shape  : {df.shape}")
-    print(f"  Min date: {df['date'].min()}")
-    print(f"  Max date: {df['date'].max()}")
-    print(f"\nFirst 3 rows:")
-    print(df.head(3).to_string())
-
-    return df
+if __name__ == "__main__":
+    load_dataset()
