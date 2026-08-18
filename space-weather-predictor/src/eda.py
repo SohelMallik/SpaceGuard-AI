@@ -1,218 +1,120 @@
-"""
-eda.py
-======
-Exploratory Data Analysis functions for the space weather dataset.
-
-Usage:
-    from src.eda import run_eda
-    run_eda(space_df)
-"""
-
-from pathlib import Path
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")  # non-interactive backend for server / pipeline use
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-FIGURES_DIR: Path = Path(__file__).resolve().parent.parent / "outputs" / "figures"
-
-
-def _ensure_figures_dir() -> None:
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# Individual analysis functions
-# ---------------------------------------------------------------------------
-
-def analyze_event_distribution(space_df: pd.DataFrame) -> pd.Series:
-    """Count and print events per event_type."""
-    counts = space_df["event_type"].value_counts()
-    total = len(space_df)
+def analyze_event_distribution(df: pd.DataFrame):
+    """Analyzes and prints the distribution of event types."""
     print("\n--- Event Distribution ---")
-    for event_type, count in counts.items():
-        pct = count / total * 100
-        print(f"  {event_type:<25} {count:>6}  ({pct:.1f}%)")
-    return counts
+    event_counts = df["event_type"].value_counts()
+    event_percentages = df["event_type"].value_counts(normalize=True) * 100
+    print("Event Counts:\n", event_counts)
+    print("\nEvent Percentages:\n", event_percentages)
 
-
-def analyze_temporal_patterns(space_df: pd.DataFrame) -> dict[str, pd.Series]:
-    """Analyze events per year, month, and hour."""
-    by_year = space_df.groupby("year").size()
-    by_month = space_df.groupby("month").size()
-    by_hour = space_df.groupby("hour").size()
-
+def analyze_temporal_patterns(df: pd.DataFrame):
+    """Analyzes and prints temporal patterns of events."""
     print("\n--- Temporal Analysis ---")
-    print(f"  Events per year  (total years: {len(by_year)})")
-    print(by_year.to_string())
-    print(f"\n  Events per month:\n{by_month.to_string()}")
-    print(f"\n  Events per hour  (top 5):\n{by_hour.nlargest(5).to_string()}")
+    print("\nEvents per year:\n", df["year"].value_counts().sort_index())
+    print("\nEvents per month:\n", df["month"].value_counts().sort_index())
+    print("\nEvents per hour:\n", df["hour"].value_counts().sort_index())
 
-    return {"by_year": by_year, "by_month": by_month, "by_hour": by_hour}
-
-
-def analyze_solar_flares(space_df: pd.DataFrame) -> dict:
-    """Summarize solar flare statistics."""
-    flares = space_df[space_df["event_type"] == "Solar Flare"].copy()
-    total = len(flares)
-
-    class_dist = flares["flare_class"].value_counts()
-    mag = flares["flare_magnitude"]
-    dur = flares["duration_minutes"] if "duration_minutes" in flares.columns else pd.Series(dtype=float)
-
-    stats = {
-        "total_flares": total,
-        "class_distribution": class_dist,
-        "magnitude_mean": mag.mean(),
-        "magnitude_median": mag.median(),
-        "magnitude_min": mag.min(),
-        "magnitude_max": mag.max(),
-        "duration_mean": dur.mean() if len(dur) > 0 else 0.0,
-        "duration_median": dur.median() if len(dur) > 0 else 0.0,
-        "duration_min": dur.min() if len(dur) > 0 else 0.0,
-        "duration_max": dur.max() if len(dur) > 0 else 0.0,
-    }
-
+def analyze_solar_flares(df: pd.DataFrame):
+    """Analyzes and prints statistics for solar flares."""
     print("\n--- Solar Flare Analysis ---")
-    print(f"  Total flares   : {total}")
-    print(f"  Class distribution:\n{class_dist.to_string()}")
-    print(f"  Magnitude — mean: {stats['magnitude_mean']:.2f}  median: {stats['magnitude_median']:.2f}"
-          f"  min: {stats['magnitude_min']:.2f}  max: {stats['magnitude_max']:.2f}")
-    print(f"  Duration (min) — mean: {stats['duration_mean']:.1f}  median: {stats['duration_median']:.1f}"
-          f"  min: {stats['duration_min']:.1f}  max: {stats['duration_max']:.1f}")
-    return stats
+    flares_df = df[df["event_type"] == "Solar Flare"].copy()
+    print("Total solar flares:", len(flares_df))
+    if not flares_df.empty:
+        print("\nFlare class distribution:\n", flares_df["flare_class"].value_counts())
+        print("\nFlare magnitude stats:\n", flares_df["flare_magnitude"].describe())
+        print("\nFlare duration stats (minutes):\n", flares_df["duration_minutes"].describe())
 
-
-def analyze_geomagnetic_storms(space_df: pd.DataFrame) -> dict:
-    """Summarize geomagnetic storm statistics."""
-    storms = space_df[space_df["event_type"] == "Geomagnetic Storm"].copy()
-    total = len(storms)
-
-    if "kp_index" in storms.columns:
-        kp = storms["kp_index"]
-        kp_stats = {
-            "mean": kp.mean(),
-            "median": kp.median(),
-            "min": kp.min(),
-            "max": kp.max(),
-        }
-    else:
-        kp_stats = {"mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0}
-
-    class_dist = storms["class_type"].value_counts() if "class_type" in storms.columns else pd.Series(dtype=int)
-
-    stats = {
-        "total_storms": total,
-        "class_distribution": class_dist,
-        "kp_mean": kp_stats["mean"],
-        "kp_median": kp_stats["median"],
-        "kp_min": kp_stats["min"],
-        "kp_max": kp_stats["max"],
-    }
-
+def analyze_geomagnetic_storms(df: pd.DataFrame):
+    """Analyzes and prints statistics for geomagnetic storms."""
     print("\n--- Geomagnetic Storm Analysis ---")
-    print(f"  Total storms   : {total}")
-    print(f"  Class distribution:\n{class_dist.head(10).to_string()}")
-    print(f"  Kp — mean: {kp_stats['mean']:.2f}  median: {kp_stats['median']:.2f}"
-          f"  min: {kp_stats['min']:.2f}  max: {kp_stats['max']:.2f}")
-    return stats
+    storms_df = df[df["event_type"] == "Geomagnetic Storm"].copy()
+    print("Total geomagnetic storms:", len(storms_df))
+    if not storms_df.empty:
+        print("\nStorm class distribution:\n", storms_df["class_type"].value_counts())
+        print("\nKp index stats:\n", storms_df["kp_index"].describe())
 
+def create_visualizations(df: pd.DataFrame, output_dir: Path):
+    """Creates and saves a 2x2 summary visualization."""
+    print("\n--- Creating Visualizations ---")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle("Space Weather Event Analysis", fontsize=16)
 
-# ---------------------------------------------------------------------------
-# Visualizations
-# ---------------------------------------------------------------------------
+    # Event Type Distribution
+    df["event_type"].value_counts().plot(kind="pie", ax=axes[0, 0], autopct="%1.1f%%")
+    axes[0, 0].set_title("Event Type Distribution")
+    axes[0, 0].set_ylabel("")
 
-def create_eda_figure(space_df: pd.DataFrame, save: bool = True) -> plt.Figure:
-    """Create a 2x2 EDA overview figure.
+    # Events per Month
+    df["month"].value_counts().sort_index().plot(kind="bar", ax=axes[0, 1])
+    axes[0, 1].set_title("Events per Month")
+    axes[0, 1].set_xlabel("Month")
+    axes[0, 1].set_ylabel("Number of Events")
 
-    Panels
-    ------
-    [0,0]  Event Type Distribution (bar)
-    [0,1]  Events per Month (bar)
-    [1,0]  Solar Flare Class Breakdown (bar)
-    [1,1]  Events per Year (line)
-    """
-    _ensure_figures_dir()
+    # Solar Flare Class Breakdown
+    flares_df = df[df["event_type"] == "Solar Flare"]
+    flares_df["flare_class"].value_counts().plot(kind="bar", ax=axes[1, 0], color="orange")
+    axes[1, 0].set_title("Solar Flare Class Breakdown")
+    axes[1, 0].set_xlabel("Flare Class")
+    axes[1, 0].set_ylabel("Count")
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle("Space Weather Event Analysis", fontsize=16, fontweight="bold")
+    # Events per Year
+    df["year"].value_counts().sort_index().plot(kind="line", ax=axes[1, 1], marker='o')
+    axes[1, 1].set_title("Events per Year")
+    axes[1, 1].set_xlabel("Year")
+    axes[1, 1].set_ylabel("Number of Events")
 
-    # --- Panel 1: Event Type Distribution ---
-    ax = axes[0, 0]
-    event_counts = space_df["event_type"].value_counts()
-    ax.bar(event_counts.index, event_counts.values, color="#3b82d4")
-    ax.set_title("Event Type Distribution")
-    ax.set_xlabel("Event Type")
-    ax.set_ylabel("Count")
-    ax.tick_params(axis="x", rotation=20)
-    for i, v in enumerate(event_counts.values):
-        ax.text(i, v + max(event_counts.values) * 0.01, str(v), ha="center", fontsize=9)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    save_path = output_dir / "eda_summary.png"
+    plt.savefig(save_path)
+    print(f"Visualization saved to {save_path}")
+    plt.close()
 
-    # --- Panel 2: Events per Month ---
-    ax = axes[0, 1]
-    by_month = space_df.groupby("month").size()
-    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    ax.bar(
-        [month_labels[m - 1] for m in by_month.index],
-        by_month.values,
-        color="#7c5cd8",
-    )
-    ax.set_title("Events per Month")
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Count")
+def run_eda(df: pd.DataFrame):
+    """Runs the full exploratory data analysis pipeline."""
+    if df is None:
+        print("DataFrame is None. Cannot run EDA.")
+        return
+    analyze_event_distribution(df)
+    analyze_temporal_patterns(df)
+    analyze_solar_flares(df)
+    analyze_geomagnetic_storms(df)
+    create_visualizations(df, Path("space-weather-predictor/outputs/figures"))
 
-    # --- Panel 3: Solar Flare Class Breakdown ---
-    ax = axes[1, 0]
-    flares = space_df[space_df["event_type"] == "Solar Flare"]
-    flare_classes = flares["flare_class"].value_counts()
-    colors = ["#e74c3c", "#f39c12", "#27ae60", "#3498db", "#9b59b6", "#95a5a6"]
-    ax.bar(
-        flare_classes.index,
-        flare_classes.values,
-        color=colors[: len(flare_classes)],
-    )
-    ax.set_title("Solar Flare Class Breakdown")
-    ax.set_xlabel("Flare Class")
-    ax.set_ylabel("Count")
+if __name__ == "__main__":
+    # This block is for testing with some sample data.
+    # In the full pipeline, this would be called from run.py
+    from data_loader import load_dataset
+    from data_cleaning import clean_space_weather_data
+    
+    # Create a dummy csv for testing if it doesn't exist
+    data_path = Path("space-weather-predictor/data")
+    file_path = data_path / "space_weather_unified.csv"
+    if not file_path.exists():
+        print("Creating a dummy space_weather_unified.csv for EDA testing.")
+        data_path.mkdir(exist_ok=True)
+        dummy_data = {
+            'event_id': [f'2023-{i:02d}' for i in range(1, 21)],
+            'event_type': ['Solar Flare', 'CME', 'Geomagnetic Storm', 'High Speed Stream'] * 5,
+            'begin_time': pd.to_datetime([f'2023-{(i%12)+1:02d}-{(i%28)+1:02d}T{i%24:02d}:00:00' for i in range(20)]),
+            'peak_time': pd.to_datetime([f'2023-{(i%12)+1:02d}-{(i%28)+1:02d}T{i%24+1:02d}:00:00' for i in range(20)]),
+            'end_time': pd.to_datetime([f'2023-{(i%12)+1:02d}-{(i%28)+1:02d}T{i%24+2:02d}:00:00' for i in range(20)]),
+            'class_type': ['X1.0', 'C-type', 'G1', ''] * 5,
+            'source_location': ['S10W20'] * 20,
+            'active_region': ['12345'] * 20,
+            'date': pd.to_datetime([f'2023-{(i%12)+1:02d}-{(i%28)+1:02d}' for i in range(20)]),
+            'kp_index': [5, 0, 6, 0] * 5,
+            'note': [''] * 20,
+            'observed_time': [None] * 20,
+            'source': [''] * 20
+        }
+        dummy_df = pd.DataFrame(dummy_data)
+        dummy_df.to_csv(file_path, index=False)
 
-    # --- Panel 4: Events per Year ---
-    ax = axes[1, 1]
-    by_year = space_df.groupby("year").size()
-    ax.plot(by_year.index, by_year.values, marker="o", color="#3b82d4", linewidth=2)
-    ax.fill_between(by_year.index, by_year.values, alpha=0.15, color="#3b82d4")
-    ax.set_title("Events per Year")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Count")
-
-    plt.tight_layout()
-
-    if save:
-        fig_path = FIGURES_DIR / "eda_overview.png"
-        fig.savefig(fig_path, dpi=120, bbox_inches="tight")
-        print(f"\n  EDA figure saved → {fig_path}")
-
-    return fig
-
-
-# ---------------------------------------------------------------------------
-# Master EDA runner
-# ---------------------------------------------------------------------------
-
-def run_eda(space_df: pd.DataFrame) -> dict:
-    """Run the complete EDA pipeline and return collected statistics."""
-    print("\n=== Exploratory Data Analysis ===")
-
-    event_counts = analyze_event_distribution(space_df)
-    temporal = analyze_temporal_patterns(space_df)
-    flare_stats = analyze_solar_flares(space_df)
-    storm_stats = analyze_geomagnetic_storms(space_df)
-    fig = create_eda_figure(space_df)
-    plt.close(fig)
-
-    return {
-        "event_counts": event_counts,
-        "temporal": temporal,
-        "flare_stats": flare_stats,
-        "storm_stats": storm_stats,
-    }
+    raw_df = load_dataset()
+    if raw_df is not None:
+        cleaned_df = clean_space_weather_data(raw_df)
+        run_eda(cleaned_df)
