@@ -1,214 +1,111 @@
-"""
-app.py
-======
-Streamlit Go/No-Go Dashboard for the Space Weather Launch Safety Predictor.
-
-Run:
-    streamlit run dashboard/app.py
-
-The dashboard loads pre-computed risk data from models/space_weather_data.pkl.
-It never re-trains the model.
-"""
-
-import sys
-from pathlib import Path
-
-# Ensure the project root is on sys.path so src/ and dashboard/ can be imported
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 import streamlit as st
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from pathlib import Path
+import sys
 
-from src.prediction import load_model, load_saved_data
-from dashboard.dashboard_utils import (
-    filter_date_range,
-    compute_date_range_summary,
-    RISK_COLORS,
-    LEVEL_COLORS,
-)
-from dashboard.charts import (
-    chart_risk_score_per_day,
-    chart_daily_recommendation,
-    chart_solar_events_48h,
-)
-
-# ---------------------------------------------------------------------------
-# Page configuration
-# ---------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Space Weather Launch Safety Predictor",
-    page_icon="🚀",
-    layout="wide",
-)
-
-
-# ---------------------------------------------------------------------------
-# Data loading (cached)
-# ---------------------------------------------------------------------------
-@st.cache_resource
-def _load_model():
-    try:
-        return load_model()
-    except (FileNotFoundError, RuntimeError) as exc:
-        return None, str(exc)
-
-
-@st.cache_data
-def _load_data() -> tuple[dict | None, str]:
-    try:
-        data = load_saved_data()
-        return data, ""
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
-        return None, str(exc)
-
-
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
-st.title("🚀 Space Weather Launch Safety Predictor")
-st.caption(
-    "Educational risk-assessment system. "
-    "Not an operational NASA launch decision tool."
-)
-
-# ---------------------------------------------------------------------------
-# Load artifacts
-# ---------------------------------------------------------------------------
-model = _load_model()
-data, data_error = _load_data()
-
-if data is None:
-    st.error(f"⚠️ Cannot load saved data: {data_error}")
-    st.info(
-        "Run the training pipeline first:\n\n"
-        "```bash\npython run.py\n```"
-    )
-    st.stop()
-
-current_stats: dict = data["current_stats"]
-feature_cols: list[str] = data["feature_cols"]
-recent_features: pd.DataFrame = data["recent_features"]
-
-# Convert date column
-recent_features["date"] = pd.to_datetime(recent_features["date"])
-
-# Build full risk features (use recent_features as display source)
-full_df = recent_features.copy()
-if "risk_score" not in full_df.columns:
-    from src.risk_scoring import calculate_risk_score, score_to_risk_level, get_recommendation as _rec
-    full_df["risk_score"] = full_df.apply(calculate_risk_score, axis=1)
-    full_df["risk_level"] = full_df["risk_score"].apply(score_to_risk_level)
-    full_df["recommendation"] = full_df["risk_level"].apply(_rec)
-
-# ---------------------------------------------------------------------------
-# Current status card
-# ---------------------------------------------------------------------------
-st.subheader("📡 Current Status")
-col1, col2, col3, col4 = st.columns(4)
-
-rec_color = RISK_COLORS.get(current_stats.get("recommendation", "GO"), "#888")
-level = current_stats.get("latest_risk_level", "UNKNOWN")
-
-col1.metric("Current Date", current_stats.get("latest_date", "N/A"))
-col2.metric("Risk Score", f"{current_stats.get('latest_risk_score', 0):.1f} / 100")
-col3.metric("Risk Level", level)
-col4.metric("Recommendation", current_stats.get("recommendation", "UNKNOWN"))
-
-# ---------------------------------------------------------------------------
-# Key metrics
-# ---------------------------------------------------------------------------
-st.subheader("📊 Key Metrics (48h Window)")
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("X-class Flares", current_stats.get("xclass_48h", 0))
-m2.metric("M-class Flares", current_stats.get("mclass_48h", 0))
-m3.metric("Max Kp Index", f"{current_stats.get('max_kp_48h', 0):.1f}")
-m4.metric("Avg Kp Index", "—")
-
-# ---------------------------------------------------------------------------
-# Date-range selector
-# ---------------------------------------------------------------------------
-st.subheader("📅 Date-Range Analysis")
-
-min_date = full_df["date"].min().date()
-max_date = full_df["date"].max().date()
-
-col_start, col_end = st.columns(2)
-with col_start:
-    start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
-with col_end:
-    end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
+# Add the src directory to the path to import modules from there
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'src'))
 
 try:
-    filtered = filter_date_range(full_df, str(start_date), str(end_date))
-    summary = compute_date_range_summary(filtered)
-except ValueError as exc:
-    st.warning(str(exc))
+    from prediction import load_model, load_saved_data
+    from charts import plot_risk_score, plot_daily_recommendation, plot_solar_events
+    from dashboard_utils import calculate_summary
+except ImportError as e:
+    st.error(f"Error importing modules: {e}. Make sure the src and dashboard directories are structured correctly.")
     st.stop()
 
-# Summary row
-s1, s2, s3, s4, s5, s6 = st.columns(6)
-s1.metric("Total Days", summary["total_days"])
-s2.metric("Avg Risk Score", f"{summary['avg_risk_score']:.1f}")
-s3.metric("GO days", summary["go_days"])
-s4.metric("CAUTION days", summary["caution_days"])
-s5.metric("DELAY days", summary["delay_days"])
-s6.metric("NO-GO days", summary["no_go_days"])
 
-st.info(
-    f"📌 Highest risk: **{summary['highest_risk_date']}** "
-    f"(score {summary['highest_risk_score']:.1f})   |   "
-    f"Overall recommendation: **{summary['overall_recommendation']}**"
-)
+def main():
+    st.set_page_config(page_title="Space Weather Launch Safety Predictor", layout="wide")
 
-# ---------------------------------------------------------------------------
-# Chart 1 — Risk Score per Day
-# ---------------------------------------------------------------------------
-st.subheader("📈 Risk Score per Day")
-fig1 = chart_risk_score_per_day(filtered)
-st.pyplot(fig1)
-plt.close(fig1)
+    st.title("🚀 Space Weather Launch Safety Predictor")
 
-# ---------------------------------------------------------------------------
-# Chart 2 — Daily Recommendation
-# ---------------------------------------------------------------------------
-st.subheader("🚦 Daily Recommendation")
-fig2 = chart_daily_recommendation(filtered)
-st.pyplot(fig2)
-plt.close(fig2)
+    try:
+        # Load model and data
+        model = load_model()
+        saved_data = load_saved_data()
+        current_stats = saved_data.get('current_stats', {})
+        risk_features_df = pd.DataFrame(saved_data.get('risk_features', []))
+        risk_features_df['date'] = pd.to_datetime(risk_features_df['date'])
 
-# ---------------------------------------------------------------------------
-# Chart 3 — Solar Events in 48h Window
-# ---------------------------------------------------------------------------
-st.subheader("☀️ Solar Events in 48-Hour Window")
-fig3 = chart_solar_events_48h(filtered)
-st.pyplot(fig3)
-plt.close(fig3)
+    except FileNotFoundError as e:
+        st.error(f"Error: {e}. Please run the main pipeline (`run.py`) to generate the necessary model and data files.")
+        st.warning("The dashboard is running with sample data. For accurate predictions, please generate the artifacts.")
+        # Create sample data for display if files are not found
+        current_stats = {'latest_date': pd.Timestamp('2025-01-01'), 'latest_risk_score': 10, 'latest_risk_level': 'LOW', 'recommendation': 'GO', 'xclass_48h': 0, 'mclass_48h': 0, 'max_kp_48h': 2}
+        risk_features_df = pd.DataFrame({
+            'date': pd.to_datetime(['2025-01-01', '2025-01-02', '2025-01-03']),
+            'risk_score': [10, 25, 50],
+            'risk_level': ['LOW', 'MODERATE', 'HIGH'],
+            'xclass_flare_count': [0, 0, 1],
+            'mclass_flare_count': [0, 1, 0],
+            'cclass_flare_count': [1, 1, 2],
+            'storm_count': [0, 0, 1],
+        })
+        
+    # --- Current Status ---
+    st.header("Current Status")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Current Date", current_stats.get('latest_date', pd.Timestamp.now()).strftime('%Y-%m-%d'))
+    col2.metric("Risk Score", f"{current_stats.get('latest_risk_score', 0):.2f}")
+    col3.metric("Risk Level", current_stats.get('latest_risk_level', 'N/A'))
+    col4.metric("Recommendation", current_stats.get('recommendation', 'N/A'))
 
-# ---------------------------------------------------------------------------
-# Model information
-# ---------------------------------------------------------------------------
-st.subheader("🤖 Model Information")
-st.markdown(
-    """
-| Parameter | Value |
-|---|---|
-| Model | Random Forest Classifier |
-| Number of estimators | 100 |
-| Max depth | 10 |
-| Random seed | 42 |
-| Train/test split | Time-based — cutoff 2025-01-01 |
-| Features | xclass_flare_count, mclass_flare_count, cclass_flare_count, max_kp_index, avg_kp_index, storm_count, event_trend |
-| Target | risk_level (LOW / MODERATE / HIGH / EXTREME) |
-"""
-)
+    st.subheader("Key Metrics (in last 48h)")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("X-class Flares", current_stats.get('xclass_48h', 0))
+    col2.metric("M-class Flares", current_stats.get('mclass_48h', 0))
+    col3.metric("Max Kp Index", f"{current_stats.get('max_kp_48h', 0):.2f}")
 
-st.caption(
-    "⚠️ Educational Disclaimer: This system is built for learning purposes. "
-    "The risk scores and recommendations are derived from a simplified educational model "
-    "and are NOT suitable for real spacecraft launch decisions."
-)
+    # --- Date Range Analysis ---
+    st.header("Date-Range Analysis")
+    
+    min_date = risk_features_df['date'].min()
+    max_date = risk_features_df['date'].max()
+
+    start_date, end_date = st.select_slider(
+        'Select a date range',
+        options=risk_features_df['date'].dt.date.unique(),
+        value=(min_date.date(), max_date.date())
+    )
+    
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
+    # Filter data
+    filtered_df = risk_features_df[(risk_features_df['date'] >= start_date) & (risk_features_df['date'] <= end_date)]
+
+    if not filtered_df.empty:
+        # Display summary
+        summary = calculate_summary(filtered_df)
+        st.subheader("Summary for Selected Range")
+        s_col1, s_col2, s_col3, s_col4 = st.columns(4)
+        s_col1.metric("Total Days", summary['total_days'])
+        s_col2.metric("Avg. Risk Score", f"{summary['average_risk_score']:.2f}")
+        s_col3.metric("Highest Risk Score", f"{summary['highest_risk_score']:.2f} on {summary['highest_risk_date']}")
+        s_col4.metric("Overall Recommendation", summary['overall_recommendation'])
+
+
+        # --- Visualizations ---
+        st.subheader("Risk Trend")
+        st.pyplot(plot_risk_score(filtered_df))
+
+        st.subheader("Recommendation Trend")
+        st.pyplot(plot_daily_recommendation(filtered_df))
+
+        st.subheader("Solar Event Breakdown")
+        st.pyplot(plot_solar_events(filtered_df))
+
+    else:
+        st.warning("No data available for the selected date range.")
+
+    # --- Model Information ---
+    with st.expander("Model Information"):
+        st.text("Model: Random Forest Classifier")
+        st.text("Number of estimators: 100")
+        st.text("Max depth: 10")
+        st.text("Random seed: 42")
+        st.text("Features used: xclass_flare_count, mclass_flare_count, cclass_flare_count, max_kp_index, avg_kp_index, storm_count, event_trend")
+
+if __name__ == "__main__":
+    main()
