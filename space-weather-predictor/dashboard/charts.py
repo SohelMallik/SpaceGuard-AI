@@ -1,110 +1,66 @@
-"""
-charts.py
-=========
-Matplotlib chart generators for the Go/No-Go dashboard.
-
-All functions return a matplotlib Figure.
-"""
-
-import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import pandas as pd
+from .dashboard_utils import get_recommendation
 
-from dashboard.dashboard_utils import LEVEL_COLORS, RISK_COLORS
-
-
-# ---------------------------------------------------------------------------
-# Chart 1 — Risk Score per Day
-# ---------------------------------------------------------------------------
-
-def chart_risk_score_per_day(filtered_df: pd.DataFrame) -> plt.Figure:
-    """Line chart: daily risk score with GO and NO-GO threshold lines."""
-    fig, ax = plt.subplots(figsize=(12, 4))
-
-    dates = pd.to_datetime(filtered_df["date"])
-    scores = filtered_df["risk_score"].values
-
-    ax.plot(dates, scores, color="#3b82d4", linewidth=1.5, label="Risk Score")
-    ax.fill_between(dates, scores, alpha=0.10, color="#3b82d4")
-
-    ax.axhline(y=20, color="#27ae60", linestyle="--", linewidth=1.2, label="GO threshold (20)")
-    ax.axhline(y=60, color="#e74c3c", linestyle="--", linewidth=1.2, label="NO-GO threshold (60)")
-
-    ax.set_title("Daily Launch Risk Score", fontsize=13, fontweight="bold")
+def plot_risk_score(df: pd.DataFrame):
+    """Plots the daily risk score over time."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(df['date'], df['risk_score'], marker='o', linestyle='-')
+    
+    # Threshold lines
+    ax.axhline(y=20, color='green', linestyle='--', label='GO Threshold (<=20)')
+    ax.axhline(y=60, color='red', linestyle='--', label='NO-GO Threshold (>60)')
+    
+    ax.set_title("Risk Score per Day")
     ax.set_xlabel("Date")
-    ax.set_ylabel("Risk Score (0–100)")
+    ax.set_ylabel("Risk Score (0-100)")
     ax.set_ylim(0, 105)
-    ax.legend(fontsize=9)
-    ax.tick_params(axis="x", rotation=30)
+    ax.legend()
+    plt.xticks(rotation=45)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.tight_layout()
     return fig
 
+def plot_daily_recommendation(df: pd.DataFrame):
+    """Plots the daily launch recommendations."""
+    df['recommendation'] = df['risk_level'].apply(get_recommendation)
+    recommendation_order = ["GO", "CAUTION", "DELAY", "NO-GO"]
+    recommendation_colors = {"GO": "green", "CAUTION": "yellow", "DELAY": "orange", "NO-GO": "red"}
 
-# ---------------------------------------------------------------------------
-# Chart 2 — Daily Recommendation
-# ---------------------------------------------------------------------------
-
-_REC_ORDER = {"GO": 0, "CAUTION": 1, "DELAY": 2, "NO-GO": 3}
-_REC_LABELS = {0: "GO", 1: "CAUTION", 2: "DELAY", 3: "NO-GO"}
-_REC_COLORS_LIST = ["#27ae60", "#f39c12", "#e67e22", "#e74c3c"]
-
-
-def chart_daily_recommendation(filtered_df: pd.DataFrame) -> plt.Figure:
-    """Scatter/step chart showing GO / CAUTION / DELAY / NO-GO per day."""
-    df = filtered_df.copy()
-    if "recommendation" not in df.columns:
-        from dashboard.dashboard_utils import get_recommendation, risk_level_from_score
-        df["risk_level"] = df["risk_score"].apply(risk_level_from_score)
-        df["recommendation"] = df["risk_level"].apply(get_recommendation)
-
-    df["rec_num"] = df["recommendation"].map(_REC_ORDER).fillna(0).astype(int)
-    dates = pd.to_datetime(df["date"])
-    colors = [_REC_COLORS_LIST[n] for n in df["rec_num"]]
-
-    fig, ax = plt.subplots(figsize=(12, 3))
-    ax.scatter(dates, df["rec_num"], c=colors, s=30, zorder=3)
-    ax.step(dates, df["rec_num"], color="#aaaaaa", linewidth=0.8, where="mid", alpha=0.5)
-
-    ax.set_yticks([0, 1, 2, 3])
-    ax.set_yticklabels(["GO", "CAUTION", "DELAY", "NO-GO"])
-    ax.set_title("Daily Launch Recommendation", fontsize=13, fontweight="bold")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Create a categorical type for ordering
+    df['recommendation'] = pd.Categorical(df['recommendation'], categories=recommendation_order, ordered=True)
+    
+    # Plotting each day as a bar
+    for i, row in df.iterrows():
+        ax.bar(row['date'], 1, color=recommendation_colors.get(row['recommendation']), width=1.0)
+        
+    # Formatting the plot
+    ax.set_title("Daily Recommendation")
     ax.set_xlabel("Date")
-    ax.tick_params(axis="x", rotation=30)
+    ax.set_yticks([]) # Hide y-axis ticks
+    plt.xticks(rotation=45)
 
-    patches = [mpatches.Patch(color=c, label=l) for l, c in RISK_COLORS.items()]
-    ax.legend(handles=patches, fontsize=8, loc="upper right")
+    # Custom legend
+    patches = [plt.Rectangle((0,0),1,1, color=color) for color in recommendation_colors.values()]
+    ax.legend(patches, recommendation_colors.keys(), loc='upper left')
+
     plt.tight_layout()
     return fig
 
-
-# ---------------------------------------------------------------------------
-# Chart 3 — Solar Events in 48-Hour Window (stacked bar)
-# ---------------------------------------------------------------------------
-
-def chart_solar_events_48h(filtered_df: pd.DataFrame) -> plt.Figure:
-    """Stacked bar chart: X/M/C flare counts and storm counts per day."""
-    df = filtered_df.copy()
-    dates = pd.to_datetime(df["date"])
-
-    x = filtered_df["xclass_flare_count"].values
-    m = filtered_df["mclass_flare_count"].values
-    c = filtered_df["cclass_flare_count"].values
-    s = filtered_df["storm_count"].values
-
-    fig, ax = plt.subplots(figsize=(12, 4))
-
-    width = 0.8
-    ax.bar(dates, x, width=width, label="X-class Flares", color="#e74c3c", alpha=0.9)
-    ax.bar(dates, m, width=width, bottom=x, label="M-class Flares", color="#f39c12", alpha=0.9)
-    ax.bar(dates, c, width=width, bottom=x + m, label="C-class Flares", color="#27ae60", alpha=0.9)
-    ax.bar(dates, s, width=width, bottom=x + m + c, label="Storms (Kp≥5)", color="#3b82d4", alpha=0.9)
-
-    ax.set_title("Solar Events in 48-Hour Window", fontsize=13, fontweight="bold")
+def plot_solar_events(df: pd.DataFrame):
+    """Plots the solar events in a stacked bar chart."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    features_to_plot = ['xclass_flare_count', 'mclass_flare_count', 'cclass_flare_count', 'storm_count']
+    
+    df.plot(x='date', y=features_to_plot, kind='bar', stacked=True, ax=ax)
+    
+    ax.set_title("Solar Events in 48 Hours")
     ax.set_xlabel("Date")
     ax.set_ylabel("Event Count")
-    ax.legend(fontsize=9)
-    ax.tick_params(axis="x", rotation=30)
+    plt.xticks(rotation=45)
+    ax.legend(["X-class Flares", "M-class Flares", "C-class Flares", "Storms (Kp>=5)"])
     plt.tight_layout()
     return fig
