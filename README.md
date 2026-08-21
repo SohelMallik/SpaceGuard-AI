@@ -336,7 +336,7 @@ python SpaceGuard-AI/backend/manage.py runserver
 ## Team Information
 
 - **Developer:** Sohel Mallik
-- **Organization:** [Your Organization]
+- **Organization:** IBM BOB HACKATHON 
 - **Challenge:** IBM AI Builders Challenge
 - **Primary Tool:** IBM Bob
 
