@@ -6,12 +6,13 @@
 {% block content %}
 <div class="container-fluid px-3 py-3">
 
-  <!-- ── HEADER ROW ──────────────────────────────────────────────────── -->
-  <div class="row g-3 mb-3 align-items-stretch">
+  <!-- ── TOP ROW: Health + Mission Info + AI Insight ─────────────── -->
+  <div class="row g-3 mb-3">
 
-    <!-- Health Score Card -->
+    <!-- Health Score -->
     <div class="col-md-3 col-lg-2">
-      <div class="card card-dark h-100 text-center d-flex flex-column align-items-center justify-content-center py-3">
+      <div class="card card-dark h-100 p-3 d-flex flex-column align-items-center justify-content-center text-center gap-2">
+        <div class="card-label w-100 text-center">Health Score</div>
         {% with score=health.health_score|default:0 %}
         <div class="health-ring
           {% if score >= 90 %}ring-excellent
@@ -23,248 +24,214 @@
           <span class="health-score-denom">/100</span>
         </div>
         {% endwith %}
-        <div class="mt-2">
-          <span class="badge
-            {% if health.risk_level == 'NORMAL' %}bg-success
-            {% elif health.risk_level == 'LOW' %}bg-info text-dark
-            {% elif health.risk_level == 'MODERATE' %}bg-warning text-dark
-            {% elif health.risk_level == 'HIGH' %}bg-orange text-white
-            {% else %}bg-danger{% endif %} fs-6 px-3 py-2">
-            {{ health.risk_level|default:"NO DATA" }}
-          </span>
-        </div>
-        <div class="text-muted small mt-1">{{ health.health_category|default:"Awaiting analysis" }}</div>
-        <div class="text-muted small mt-2">
-          <i class="bi bi-building me-1"></i>{{ mission.spacecraft_name }}
-        </div>
+        <span class="severity-badge severity-{{ health.risk_level|lower|default:'normal' }}">
+          {{ health.risk_level|default:"NO DATA" }}
+        </span>
+        <span style="font-size:11px;color:var(--text-sub)">{{ health.health_category|default:"Awaiting analysis" }}</span>
       </div>
     </div>
 
     <!-- Mission Info -->
-    <div class="col-md-3 col-lg-3">
+    <div class="col-md-3 col-lg-2">
       <div class="card card-dark h-100 p-3">
-        <div class="card-label">MISSION STATUS</div>
-        <h5 class="text-white mb-1">{{ mission.name }}</h5>
-        <div class="text-muted small mb-2">{{ mission.description|truncatewords:15 }}</div>
-        <div class="d-flex flex-column gap-1 mt-auto">
-          <div class="d-flex justify-content-between">
-            <span class="text-muted small">Spacecraft</span>
-            <span class="text-white small">{{ mission.spacecraft_name }}</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span class="text-muted small">Launch Date</span>
-            <span class="text-white small">{{ mission.launch_date|default:"—" }}</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span class="text-muted small">Status</span>
-            <span class="badge bg-success small">{{ mission.status }}</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span class="text-muted small">Active Alerts</span>
-            <span class="badge {% if alert_count > 0 %}bg-danger{% else %}bg-secondary{% endif %} small">{{ alert_count }}</span>
-          </div>
+        <div class="card-label">Mission</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">{{ mission.spacecraft_name }}</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-bottom:12px;line-height:1.4">{{ mission.name }}</div>
+        <div class="metric-row">
+          <span class="metric-label">Launch</span>
+          <span class="metric-value">{{ mission.launch_date|default:"—" }}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Status</span>
+          <span class="status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Alerts</span>
+          <span class="metric-value" style="color:{% if alert_count > 0 %}var(--red){% else %}var(--green){% endif %}">
+            {{ alert_count }}
+          </span>
         </div>
       </div>
     </div>
 
-    <!-- AI Anomaly Insight -->
-    <div class="col-md-6 col-lg-7">
-      <div class="card card-dark h-100 p-3
+    <!-- AI Insight Card -->
+    <div class="col-md-6 col-lg-8">
+      <div class="card card-dark h-100 p-3 ai-card-accent
         {% if anomaly.severity == 'CRITICAL' %}border-critical
         {% elif anomaly.severity == 'HIGH' %}border-high
         {% elif anomaly.severity == 'MODERATE' %}border-moderate
         {% endif %}">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-cpu text-primary-accent fs-5"></i>
-          <span class="card-label mb-0">IBM GRANITE AI INSIGHT</span>
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-cpu" style="font-size:15px;color:var(--purple)"></i>
+          <span class="card-label mb-0">AI Mission Intelligence</span>
           {% if explanation.generated_by %}
-            <span class="badge badge-ai ms-auto">{{ explanation.generated_by|truncatechars:30 }}</span>
+            <span class="badge-ai ms-auto">{{ explanation.generated_by|truncatechars:32 }}</span>
           {% endif %}
         </div>
+
         {% if explanation %}
-          <div class="row g-2">
-            <div class="col-6 col-lg-4">
-              <div class="text-muted x-small">DETECTED PROBLEM</div>
-              <div class="text-white small">{{ explanation.detected_problem|default:"—"|truncatewords:15 }}</div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-5">
+              <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Detected Problem</div>
+              <div style="font-size:13px;color:var(--text)">{{ explanation.detected_problem|default:"—"|truncatewords:20 }}</div>
             </div>
-            <div class="col-6 col-lg-2">
-              <div class="text-muted x-small">SEVERITY</div>
+            <div class="col-sm-2">
+              <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Severity</div>
               <span class="severity-badge severity-{{ anomaly.severity|lower|default:'normal' }}">
                 {{ anomaly.severity|default:"NORMAL" }}
               </span>
             </div>
-            <div class="col-6 col-lg-3">
-              <div class="text-muted x-small">SUBSYSTEM</div>
-              <div class="text-white small">{{ explanation.affected_subsystem|default:"—" }}</div>
+            <div class="col-sm-2">
+              <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Subsystem</div>
+              <div style="font-size:12px;color:var(--text)">{{ explanation.affected_subsystem|default:"—" }}</div>
             </div>
-            <div class="col-6 col-lg-3">
-              <div class="text-muted x-small">ANOMALY SCORE</div>
-              <div class="text-white small">{{ anomaly.anomaly_score|default:"—" }}</div>
+            <div class="col-sm-3">
+              <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">Anomaly Score</div>
+              <div style="font-size:12px;color:var(--text)">{{ anomaly.anomaly_score|default:"—" }}</div>
             </div>
-            <div class="col-12">
-              <div class="text-muted x-small">RECOMMENDED ACTION</div>
-              <div class="text-accent small">{{ explanation.recommended_action|default:"Continue nominal operations." }}</div>
-            </div>
+          </div>
+          <div style="background:var(--bg);border-radius:6px;padding:8px 10px;border:1px solid var(--border-soft)">
+            <span style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px">Recommended Action</span>
+            <div style="font-size:13px;color:var(--blue);margin-top:2px">{{ explanation.recommended_action|default:"Continue nominal operations." }}</div>
           </div>
         {% else %}
-          <div class="text-muted small mt-3">
-            <i class="bi bi-info-circle me-1"></i>
-            No analysis yet. Click <strong>Run Analysis</strong> or POST to <code>/api/missions/{{ mission.pk }}/analyze/</code>
+          <div style="font-size:13px;color:var(--text-sub);padding:8px 0">
+            <i class="bi bi-info-circle me-1" style="color:var(--blue)"></i>
+            No analysis yet — click <strong style="color:var(--text)">Run Analysis</strong> to begin.
           </div>
         {% endif %}
-        <div class="mt-auto pt-2 d-flex gap-2">
-          <button class="btn btn-sm btn-primary" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
+
+        <div class="d-flex gap-2 mt-auto pt-3">
+          <button class="btn btn-primary btn-sm" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
             <i class="bi bi-play-fill me-1"></i>Run Analysis
           </button>
-          <a href="/missions/{{ mission.pk }}/history/" class="btn btn-sm btn-outline-secondary">
+          <a href="/missions/{{ mission.pk }}/history/" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-clock-history me-1"></i>History
+          </a>
+          <a href="/spaceguard/" class="btn btn-outline-secondary btn-sm ms-auto">
+            ☀ Space Weather →
           </a>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ── TELEMETRY CARDS ─────────────────────────────────────────────── -->
+  <!-- ── TELEMETRY SENSOR CARDS ───────────────────────────────────── -->
   {% if latest_telemetry %}
+  <div class="mb-2">
+    <div class="section-head"><h6>Live Telemetry</h6></div>
+  </div>
   <div class="row g-2 mb-3">
-    <!-- Temperature -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.temperature > 85 %}card-critical
-        {% elif latest_telemetry.temperature > 70 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.temperature > 85 %}card-critical{% elif latest_telemetry.temperature > 70 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-thermometer-half"></i></div>
         <div class="telemetry-value">{{ latest_telemetry.temperature|floatformat:1 }}°C</div>
-        <div class="telemetry-label">TEMPERATURE</div>
-        <div class="telemetry-normal">Normal: -50 to 85°C</div>
+        <div class="telemetry-label">Temperature</div>
+        <div class="telemetry-normal">–50 to 85°C</div>
       </div>
     </div>
-    <!-- Battery Voltage -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.battery_voltage < 18 %}card-critical
-        {% elif latest_telemetry.battery_voltage < 22 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.battery_voltage < 18 %}card-critical{% elif latest_telemetry.battery_voltage < 22 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-battery-charging"></i></div>
         <div class="telemetry-value">{{ latest_telemetry.battery_voltage|floatformat:1 }}V</div>
-        <div class="telemetry-label">BATTERY VOLTAGE</div>
-        <div class="telemetry-normal">Normal: 22–32V</div>
+        <div class="telemetry-label">Battery</div>
+        <div class="telemetry-normal">22–32V</div>
       </div>
     </div>
-    <!-- Fuel Level -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.fuel_level < 10 %}card-critical
-        {% elif latest_telemetry.fuel_level < 20 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.fuel_level < 10 %}card-critical{% elif latest_telemetry.fuel_level < 20 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-fuel-pump"></i></div>
         <div class="telemetry-value">{{ latest_telemetry.fuel_level|floatformat:1 }}%</div>
-        <div class="telemetry-label">FUEL LEVEL</div>
-        <div class="telemetry-normal">Critical: &lt;5%</div>
+        <div class="telemetry-label">Fuel</div>
+        <div class="telemetry-normal">Critical &lt;5%</div>
       </div>
     </div>
-    <!-- Radiation -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.radiation > 100 %}card-critical
-        {% elif latest_telemetry.radiation > 50 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.radiation > 100 %}card-critical{% elif latest_telemetry.radiation > 50 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-radioactive"></i></div>
-        <div class="telemetry-value">{{ latest_telemetry.radiation|floatformat:1 }} mSv</div>
-        <div class="telemetry-label">RADIATION</div>
-        <div class="telemetry-normal">Normal: &lt;50 mSv</div>
+        <div class="telemetry-value">{{ latest_telemetry.radiation|floatformat:1 }}</div>
+        <div class="telemetry-label">Radiation mSv</div>
+        <div class="telemetry-normal">&lt;50 mSv</div>
       </div>
     </div>
-    <!-- Pressure -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.pressure > 120 or latest_telemetry.pressure < 90 %}card-critical
-        {% elif latest_telemetry.pressure > 110 or latest_telemetry.pressure < 95 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.pressure > 120 or latest_telemetry.pressure < 90 %}card-critical{% elif latest_telemetry.pressure > 110 or latest_telemetry.pressure < 95 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-speedometer2"></i></div>
-        <div class="telemetry-value">{{ latest_telemetry.pressure|floatformat:1 }} kPa</div>
-        <div class="telemetry-label">PRESSURE</div>
-        <div class="telemetry-normal">Normal: 95–110 kPa</div>
+        <div class="telemetry-value">{{ latest_telemetry.pressure|floatformat:1 }}</div>
+        <div class="telemetry-label">Pressure kPa</div>
+        <div class="telemetry-normal">95–110 kPa</div>
       </div>
     </div>
-    <!-- Signal Strength -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.signal_strength < -130 %}card-critical
-        {% elif latest_telemetry.signal_strength < -120 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.signal_strength < -130 %}card-critical{% elif latest_telemetry.signal_strength < -120 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-broadcast-pin"></i></div>
-        <div class="telemetry-value">{{ latest_telemetry.signal_strength|floatformat:1 }} dBm</div>
-        <div class="telemetry-label">SIGNAL</div>
-        <div class="telemetry-normal">Normal: &gt;-120 dBm</div>
+        <div class="telemetry-value">{{ latest_telemetry.signal_strength|floatformat:0 }}</div>
+        <div class="telemetry-label">Signal dBm</div>
+        <div class="telemetry-normal">&gt;–120 dBm</div>
       </div>
     </div>
-    <!-- Velocity -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.velocity > 35 %}card-critical
-        {% elif latest_telemetry.velocity > 30 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.velocity > 35 %}card-critical{% elif latest_telemetry.velocity > 30 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-speedometer"></i></div>
-        <div class="telemetry-value">{{ latest_telemetry.velocity|floatformat:2 }} km/s</div>
-        <div class="telemetry-label">VELOCITY</div>
-        <div class="telemetry-normal">Normal: 0–30 km/s</div>
+        <div class="telemetry-value">{{ latest_telemetry.velocity|floatformat:2 }}</div>
+        <div class="telemetry-label">Velocity km/s</div>
+        <div class="telemetry-normal">0–30 km/s</div>
       </div>
     </div>
-    <!-- Power Consumption -->
-    <div class="col-6 col-md-3 col-lg-3 col-xl">
-      <div class="card telemetry-card
-        {% if latest_telemetry.power_consumption > 600 %}card-critical
-        {% elif latest_telemetry.power_consumption > 500 %}card-warning
-        {% else %}card-ok{% endif %}">
+    <div class="col-6 col-md-3 col-lg col-xl">
+      <div class="telemetry-card {% if latest_telemetry.power_consumption > 600 %}card-critical{% elif latest_telemetry.power_consumption > 500 %}card-warning{% else %}card-ok{% endif %}">
         <div class="telemetry-icon"><i class="bi bi-lightning-charge"></i></div>
         <div class="telemetry-value">{{ latest_telemetry.power_consumption|floatformat:0 }}W</div>
-        <div class="telemetry-label">POWER</div>
-        <div class="telemetry-normal">Normal: &lt;500W</div>
+        <div class="telemetry-label">Power</div>
+        <div class="telemetry-normal">&lt;500W</div>
       </div>
     </div>
   </div>
   {% else %}
-  <div class="alert alert-secondary mb-3">
-    <i class="bi bi-info-circle me-2"></i>
-    No telemetry data. Run <code>python manage.py seed_telemetry</code> to load sample data.
+  <div class="card card-dark p-3 mb-3" style="font-size:13px;color:var(--text-sub)">
+    <i class="bi bi-info-circle me-2" style="color:var(--blue)"></i>
+    No telemetry data yet.
+    Run <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:12px">python manage.py seed_telemetry</code>
+    to load sample data.
   </div>
   {% endif %}
 
-  <!-- ── CHARTS + ALERTS + ASSISTANT ───────────────────────────────── -->
+  <!-- ── CHARTS + ALERTS + ASSISTANT ─────────────────────────────── -->
   <div class="row g-3">
 
-    <!-- Charts column -->
+    <!-- Charts — 8 columns -->
     <div class="col-lg-8">
+
+      <!-- Telemetry charts grid -->
       <div class="card card-dark p-3 mb-3">
-        <div class="card-label mb-3">TELEMETRY CHARTS</div>
+        <div class="section-head mb-3"><h6>Telemetry Charts</h6></div>
         <div class="row g-3">
-          <div class="col-md-6"><canvas id="tempChart" height="120"></canvas></div>
-          <div class="col-md-6"><canvas id="voltChart" height="120"></canvas></div>
-          <div class="col-md-6"><canvas id="fuelChart" height="120"></canvas></div>
-          <div class="col-md-6"><canvas id="signalChart" height="120"></canvas></div>
+          <div class="col-md-6"><canvas id="tempChart" height="110"></canvas></div>
+          <div class="col-md-6"><canvas id="voltChart" height="110"></canvas></div>
+          <div class="col-md-6"><canvas id="fuelChart" height="110"></canvas></div>
+          <div class="col-md-6"><canvas id="signalChart" height="110"></canvas></div>
         </div>
       </div>
 
-      <!-- Prediction warnings -->
+      <!-- Trend predictions -->
       {% if predictions %}
       <div class="card card-dark p-3 mb-3">
-        <div class="card-label mb-2">TREND PREDICTIONS</div>
+        <div class="section-head mb-2"><h6>Trend Predictions</h6></div>
         <div class="row g-2">
           {% for pred in predictions %}
           {% if pred.warning_message %}
           <div class="col-12">
-            <div class="alert alert-warning py-2 mb-0 small">
+            <div style="background:var(--yellow-soft);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--yellow)">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
               {{ pred.warning_message }}
-              <span class="float-end text-muted">{{ pred.parameter|upper }} → {{ pred.predicted_value }}</span>
+              <span style="float:right;color:var(--text-sub)">{{ pred.parameter|upper }} → {{ pred.predicted_value }}</span>
             </div>
           </div>
           {% endif %}
           {% endfor %}
           {% for pred in predictions %}
           {% if not pred.warning_message %}
-          <div class="col-md-4">
+          <div class="col-md-4 col-6">
             <div class="prediction-pill trend-{{ pred.trend_direction|lower }}">
               <span class="pred-param">{{ pred.parameter|upper }}</span>
               <span class="pred-arrow">
@@ -280,93 +247,101 @@
         </div>
       </div>
       {% endif %}
-    </div>
 
-    <!-- Right column: Alerts + Assistant -->
-    <div class="col-lg-4">
-
-      <!-- Active Alerts -->
-      <div class="card card-dark p-3 mb-3">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="card-label mb-0">ACTIVE ALERTS</div>
-          <span class="badge {% if alert_count > 0 %}bg-danger{% else %}bg-secondary{% endif %}">{{ alert_count }}</span>
-        </div>
-        {% if active_alerts %}
-          {% for alert in active_alerts %}
-          <div class="alert-row severity-bg-{{ alert.severity|lower }}">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <span class="severity-badge severity-{{ alert.severity|lower }}">{{ alert.severity }}</span>
-                <span class="text-white small ms-2">{{ alert.subsystem }}</span>
-              </div>
-              <span class="badge bg-secondary x-small">{{ alert.status }}</span>
-            </div>
-            <div class="text-muted small mt-1">{{ alert.description|truncatewords:20 }}</div>
-          </div>
-          {% endfor %}
-        {% else %}
-          <div class="text-muted small py-2"><i class="bi bi-check-circle me-1 text-success"></i>No active alerts</div>
-        {% endif %}
-      </div>
-
-      <!-- AI Mission Assistant -->
+      <!-- AI Analysis Detail -->
+      {% if explanation.evidence %}
       <div class="card card-dark p-3">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-chat-dots text-primary-accent"></i>
-          <div class="card-label mb-0">AI MISSION ASSISTANT</div>
-        </div>
-        <div id="chatHistory" class="chat-history mb-2">
-          <div class="chat-msg assistant">
-            <strong>SpaceGuard AI</strong><br>
-            Hello, Mission Operator. I'm your AI Mission Assistant powered by IBM Granite.
-            Ask me about spacecraft health, anomalies, or subsystem status.
-          </div>
-        </div>
-        <div class="input-group input-group-sm">
-          <input type="text" id="chatInput" class="form-control chat-input"
-            placeholder="Ask about mission status..." maxlength="500">
-          <button class="btn btn-primary" onclick="sendMessage({{ mission.pk }})">
-            <i class="bi bi-send-fill"></i>
-          </button>
-        </div>
-        <div class="text-muted x-small mt-1">
-          <i class="bi bi-info-circle me-1"></i>AI uses only real telemetry data — no invented values.
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- AI Evidence Detail -->
-  {% if explanation.evidence %}
-  <div class="row mt-3">
-    <div class="col-12">
-      <div class="card card-dark p-3">
-        <div class="card-label mb-2">AI ANALYSIS DETAIL</div>
+        <div class="section-head mb-2"><h6>AI Analysis Detail</h6></div>
         <div class="row g-3">
           <div class="col-md-4">
-            <div class="text-muted x-small">EVIDENCE</div>
-            <div class="text-white small">{{ explanation.evidence }}</div>
+            <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Evidence</div>
+            <div style="font-size:12px;color:var(--text)">{{ explanation.evidence }}</div>
           </div>
           <div class="col-md-4">
-            <div class="text-muted x-small">POSSIBLE CAUSE</div>
-            <div class="text-white small">{{ explanation.possible_cause }}</div>
+            <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Possible Cause</div>
+            <div style="font-size:12px;color:var(--text)">{{ explanation.possible_cause }}</div>
           </div>
           <div class="col-md-4">
-            <div class="text-muted x-small">SUSPICIOUS PARAMETERS</div>
-            <div class="text-white small">
+            <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Suspicious Parameters</div>
+            <div>
               {% for param in anomaly.suspicious_parameters %}
-                <span class="badge bg-warning text-dark me-1">{{ param }}</span>
+                <span style="background:var(--yellow-soft);border:1px solid rgba(245,158,11,.25);color:var(--yellow);border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;margin-right:3px">{{ param }}</span>
               {% empty %}
-                <span class="text-muted">None detected</span>
+                <span style="font-size:12px;color:var(--text-sub)">None detected</span>
               {% endfor %}
             </div>
           </div>
         </div>
       </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Right column: Alerts + Assistant — 4 columns -->
+    <div class="col-lg-4">
+
+      <!-- Active Alerts -->
+      <div class="card card-dark p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="section-head mb-0 w-100"><h6>Active Alerts</h6></div>
+          <span style="background:{% if alert_count > 0 %}var(--red-soft){% else %}var(--green-soft){% endif %};color:{% if alert_count > 0 %}var(--red){% else %}var(--green){% endif %};border:1px solid {% if alert_count > 0 %}rgba(239,68,68,.3){% else %}rgba(34,197,94,.3){% endif %};padding:1px 8px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;margin-left:6px">{{ alert_count }}</span>
+        </div>
+        {% if active_alerts %}
+          {% for alert in active_alerts %}
+          <div class="alert-row severity-bg-{{ alert.severity|lower }}">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="severity-badge severity-{{ alert.severity|lower }}">{{ alert.severity }}</span>
+                <span style="font-size:12px;color:var(--text);font-weight:600">{{ alert.subsystem }}</span>
+              </div>
+              <span style="font-size:10px;color:var(--text-sub);background:var(--bg);padding:1px 6px;border-radius:3px;border:1px solid var(--border)">{{ alert.status }}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-sub)">{{ alert.description|truncatewords:18 }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="font-size:13px;color:var(--text-sub);padding:4px 0">
+            <i class="bi bi-check-circle me-1" style="color:var(--green)"></i>No active alerts
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- AI Mission Assistant -->
+      <div class="card card-dark p-3">
+        <div class="section-head mb-3"><h6>AI Mission Assistant</h6></div>
+
+        <div id="chatHistory" class="chat-history mb-2">
+          <div class="chat-msg assistant">
+            <strong>SpaceGuard AI</strong><br>
+            Hello, Mission Operator. Ask me about spacecraft health, anomalies, temperature, fuel, battery, signal, or any subsystem.
+          </div>
+        </div>
+
+        <!-- Quick prompts -->
+        <div class="d-flex gap-1 flex-wrap mb-2">
+          <button class="chat-quick-btn" onclick="quickAsk('health status', {{ mission.pk }})">Health</button>
+          <button class="chat-quick-btn" onclick="quickAsk('any anomalies', {{ mission.pk }})">Anomalies</button>
+          <button class="chat-quick-btn" onclick="quickAsk('show all telemetry', {{ mission.pk }})">Telemetry</button>
+          <button class="chat-quick-btn" onclick="quickAsk('battery status', {{ mission.pk }})">Battery</button>
+          <button class="chat-quick-btn" onclick="quickAsk('fuel level', {{ mission.pk }})">Fuel</button>
+          <button class="chat-quick-btn" onclick="quickAsk('active alerts', {{ mission.pk }})">Alerts</button>
+        </div>
+
+        <div class="input-group input-group-sm">
+          <input type="text" id="chatInput" class="form-control chat-input"
+                 placeholder="Ask about mission status..." maxlength="500">
+          <button class="btn btn-primary btn-sm" onclick="sendMessage({{ mission.pk }})">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px">
+          <i class="bi bi-shield-check me-1" style="color:var(--green)"></i>
+          Answers from real telemetry only — no invented values.
+        </div>
+      </div>
+
     </div>
   </div>
-  {% endif %}
 
 </div>
 {% endblock %}
@@ -378,5 +353,13 @@
 const CHART_DATA = {{ chart_data_json|safe }};
 const MISSION_ID = {{ mission.pk }};
 initCharts(CHART_DATA);
+
+function quickAsk(text, missionId) {
+  const input = document.getElementById('chatInput');
+  if (input) {
+    input.value = text;
+    sendMessage(missionId);
+  }
+}
 </script>
 {% endblock %}
