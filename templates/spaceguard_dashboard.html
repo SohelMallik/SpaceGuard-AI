@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpaceGuard AI — Space Weather Intelligence System</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg-space:#050a14;--bg-deep:#080f1e;--bg-panel:#0d1628;--bg-card:#111d30;
+  --bg-card2:#162038;--bg-hover:#1a2840;--border:#1e3050;--border2:#243860;
+  --text:#e2eaf6;--text-muted:#6b84a8;--text-dim:#3d5278;
+  --blue:#2d7dd2;--blue-light:#4e9de8;--blue-glow:rgba(45,125,210,.18);
+  --purple:#7c5cd8;--purple-light:#a07ee8;--purple-glow:rgba(124,92,216,.15);
+  --green:#22c55e;--green-dark:#16a34a;--green-glow:rgba(34,197,94,.15);
+  --yellow:#f59e0b;--yellow-dark:#d97706;--yellow-glow:rgba(245,158,11,.15);
+  --red:#ef4444;--red-dark:#dc2626;--red-glow:rgba(239,68,68,.15);
+  --sidebar-w:240px;--topbar-h:56px;--radius:10px;--radius-lg:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg-space);color:var(--text);font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg-deep)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* SIDEBAR */
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:var(--bg-deep);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;transition:transform .25s ease}
+.sidebar-logo{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.logo-title{font-weight:700;font-size:14px;color:var(--text);letter-spacing:.3px}
+.logo-sub{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px}
+.sidebar-nav{flex:1;padding:10px 8px;overflow-y:auto}
+.nav-section-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;padding:12px 10px 4px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;color:var(--text-muted);cursor:pointer;transition:all .15s;margin-bottom:2px;font-size:13px;font-weight:500;border:1px solid transparent;user-select:none}
+.nav-item:hover{background:var(--bg-hover);color:var(--text);border-color:var(--border)}
+.nav-item.active{background:var(--blue-glow);color:var(--blue-light);border-color:rgba(45,125,210,.3)}
+.nav-item .ni{font-size:15px;width:18px;text-align:center;flex-shrink:0}
+hr.nav-hr{border:none;border-top:1px solid var(--border);margin:8px 10px}
+.sidebar-footer{padding:12px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.status-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-g{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot-y{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
+.dot-b{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+.bob-badge{background:var(--purple-glow);border:1px solid rgba(124,92,216,.35);color:var(--purple-light);border-radius:5px;padding:4px 8px;font-size:11px;text-align:center}
+
+/* TOPBAR */
+#topbar{position:fixed;top:0;left:var(--sidebar-w);right:0;height:var(--topbar-h);background:var(--bg-deep);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:90}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.page-title{font-size:16px;font-weight:700;color:var(--text)}
+.page-subtitle{font-size:11px;color:var(--text-muted);margin-top:1px}
+.ts-badge{font-size:11px;color:var(--text-muted);background:var(--bg-panel);padding:4px 10px;border-radius:5px;border:1px solid var(--border)}
+.warn-badge{font-size:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:var(--yellow);padding:3px 8px;border-radius:5px}
+#hamburger{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px}
+
+/* MAIN */
+#main{position:fixed;top:var(--topbar-h);left:var(--sidebar-w);right:0;bottom:0;overflow-y:auto;background:var(--bg-space)}
+.page{display:none;padding:20px;animation:fadeIn .2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* CARDS */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card2{background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px}
+.card-label{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:6px}
+.kpi-value{font-size:28px;font-weight:800;line-height:1;margin-bottom:4px}
+.kpi-sub{font-size:11px;color:var(--text-muted)}
+
+/* RISK COLORS */
+.c-green{color:var(--green)} .c-yellow{color:var(--yellow)} .c-red{color:var(--red)} .c-blue{color:var(--blue-light)} .c-purple{color:var(--purple-light)}
+.bg-green-glow{background:var(--green-glow)} .bg-yellow-glow{background:var(--yellow-glow)} .bg-red-glow{background:var(--red-glow)}
+
+.badge-go{background:var(--green-glow);border:1px solid rgba(34,197,94,.35);color:var(--green);border-radius:6px;padding:4px 14px;font-size:12px;font-weight:700;display:inline-block}
+.badge-caution{background:var(--yellow-glow);border:1px solid rgba(245,158,11,.35);color:var(--yellow);border-radius:6px;padding:4px 14px;font-size:12px;font-weight:700;display:inline-block}
+.badge-nogo{background:var(--red-glow);border:1px solid rgba(239,68,68,.35);color:var(--red);border-radius:6px;padding:4px 14px;font-size:12px;font-weight:700;display:inline-block}
+.badge-low{background:var(--green-glow);border:1px solid rgba(34,197,94,.3);color:var(--green);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block}
+.badge-moderate{background:var(--yellow-glow);border:1px solid rgba(245,158,11,.3);color:var(--yellow);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block}
+.badge-high{background:var(--red-glow);border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block}
+.badge-tag{background:var(--blue-glow);border:1px solid rgba(45,125,210,.3);color:var(--blue-light);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block}
+
+/* PROGRESS */
+.pb-wrap{margin-bottom:12px}
+.pb-row{display:flex;justify-content:space-between;margin-bottom:4px}
+.pb-label{font-size:12px;color:var(--text-muted)}
+.pb-pct{font-size:12px;font-weight:700;color:var(--text)}
+.pb-track{height:6px;background:var(--bg-panel);border-radius:3px;overflow:hidden}
+.pb-fill{height:100%;border-radius:3px;transition:width 1s ease}
+.pb-blue{background:linear-gradient(90deg,var(--blue),var(--blue-light))}
+.pb-green{background:linear-gradient(90deg,var(--green-dark),var(--green))}
+.pb-yellow{background:linear-gradient(90deg,var(--yellow-dark),var(--yellow))}
+.pb-red{background:linear-gradient(90deg,var(--red-dark),var(--red))}
+.pb-purple{background:linear-gradient(90deg,var(--purple),var(--purple-light))}
+
+/* RISK SCALE */
+.scale-bar{height:10px;border-radius:5px;background:linear-gradient(90deg,#22c55e 0%,#22c55e 30%,#f59e0b 30%,#f59e0b 70%,#ef4444 70%,#ef4444 100%);position:relative;margin:8px 0 4px}
+.scale-marker{position:absolute;top:-4px;width:18px;height:18px;background:white;border-radius:50%;border:3px solid var(--bg-deep);transform:translateX(-50%);box-shadow:0 0 8px rgba(255,255,255,.5)}
+.scale-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted)}
+
+/* DECISION CARD */
+.decision-card{background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px;text-align:center}
+.decision-icon{font-size:52px;line-height:1;margin-bottom:6px}
+.decision-label{font-size:28px;font-weight:900;letter-spacing:1px;margin-bottom:6px}
+.disclaimer{font-size:10px;color:var(--text-dim);margin-top:12px;padding:8px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:5px}
+
+/* TABLES */
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{background:var(--bg-panel);color:var(--text-muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:10px 14px;border-bottom:1px solid var(--border);text-align:left}
+.data-table td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover{background:var(--bg-hover)}
+
+/* FORMS */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.form-control{width:100%;background:var(--bg-panel);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:9px 12px;font-size:13px;outline:none;transition:border-color .15s;font-family:inherit}
+.form-control:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-glow)}
+.form-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath fill='%236b84a8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-color:var(--bg-panel);appearance:none}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:white}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-outline{background:transparent;border:1px solid var(--border2);color:var(--text-muted)}
+.btn-outline:hover{border-color:var(--blue);color:var(--blue-light)}
+.btn-lg{padding:12px 28px;font-size:14px}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-block{width:100%;justify-content:center}
+
+/* INSIGHTS */
+.insight-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.insight-item:last-child{border-bottom:none}
+.insight-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.insight-text{font-size:13px;color:var(--text)}
+
+/* CONFUSION MATRIX */
+.cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;width:fit-content;margin:0 auto}
+.cm-cell{width:75px;height:75px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border);font-size:22px;font-weight:800}
+.cm-tp,.cm-tn{background:rgba(34,197,94,.12);color:var(--green);border-color:rgba(34,197,94,.25)}
+.cm-fp,.cm-fn{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.2)}
+.cm-sub{font-size:9px;font-weight:600;opacity:.7;margin-top:2px}
+.cm-label{font-size:10px;color:var(--text-muted);text-align:center}
+
+/* GRID LAYOUTS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.g-dash{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+.g-dash2{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.chart-wrap{position:relative;height:180px}
+.chart-wrap-sm{position:relative;height:140px}
+.chart-wrap-lg{position:relative;height:220px}
+.mb-4{margin-bottom:16px} .mb-3{margin-bottom:12px} .mb-2{margin-bottom:8px} .mb-1{margin-bottom:4px}
+.mt-3{margin-top:12px} .mt-2{margin-top:8px}
+.flex{display:flex} .flex-col{flex-direction:column} .items-center{align-items:center}
+.justify-between{justify-content:space-between} .gap-2{gap:8px} .gap-3{gap:12px}
+.text-right{text-align:right} .text-center{text-align:center}
+.w-full{width:100%} .overflow-x{overflow-x:auto}
+hr.sd{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* LANDING */
+.hero-section{min-height:calc(100vh - var(--topbar-h));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px}
+.hero-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--blue-light);margin-bottom:14px}
+.hero-title{font-size:46px;font-weight:900;line-height:1.08;margin-bottom:10px;background:linear-gradient(135deg,#e2eaf6 30%,var(--blue-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:14px}
+.hero-desc{font-size:15px;color:var(--text-muted);max-width:500px;margin:0 auto 28px;line-height:1.7}
+.hero-cta{display:flex;gap:12px;justify-content:center;margin-bottom:28px;flex-wrap:wrap}
+.hero-model-badge{background:var(--bg-card);border:1px solid var(--border2);border-radius:12px;padding:14px 24px;display:inline-flex;align-items:center;gap:12px;margin-bottom:32px}
+.pulse-dot{width:10px;height:10px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.stats-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:780px;width:100%}
+.stat-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.stat-val{font-size:22px;font-weight:800;color:var(--blue-light)}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:4px}
+.tagline{font-size:13px;color:var(--text-dim);margin-top:20px;letter-spacing:.5px}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  :root{--sidebar-w:0px}
+  #sidebar{transform:translateX(-240px);width:240px}
+  #sidebar.open{transform:translateX(0)}
+  #topbar,#main{left:0}
+  #hamburger{display:block}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .g2,.g-dash,.g-dash2,.g3{grid-template-columns:1fr}
+  .stats-strip{grid-template-columns:repeat(2,1fr)}
+  .hero-title{font-size:32px}
+}
+@media(max-width:500px){.kpi-grid{grid-template-columns:1fr 1fr}.hero-cta{flex-direction:column;align-items:center}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ SIDEBAR ═══════════════════════════════════════ -->
+<aside id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🚀</div>
+    <div>
+      <div class="logo-title">SpaceGuard AI</div>
+      <div class="logo-sub">Mission Intelligence</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Space Weather Intelligence</div>
+    <div class="nav-item active" onclick="showPage('landing')"><span class="ni">🏠</span> Home</div>
+    <div class="nav-item" onclick="showPage('overview')"><span class="ni">📡</span> Mission Overview</div>
+    <div class="nav-item" onclick="showPage('analyzer')"><span class="ni">🚀</span> Launch Analyzer</div>
+    <div class="nav-item" onclick="showPage('weather')"><span class="ni">☀️</span> Space Weather</div>
+    <div class="nav-item" onclick="showPage('insights')"><span class="ni">🤖</span> AI Insights</div>
+    <div class="nav-item" onclick="showPage('history')"><span class="ni">📊</span> Risk History</div>
+    <div class="nav-item" onclick="showPage('model')"><span class="ni">🧠</span> Model Performance</div>
+    <div class="nav-item" onclick="showPage('about')"><span class="ni">ℹ️</span> About &amp; Methodology</div>
+    <hr class="nav-hr">
+    <div class="nav-section-label">Other Dashboards</div>
+    <a class="nav-item" href="/" style="text-decoration:none" title="Spacecraft Health Monitoring">
+      <span class="ni">🛰</span> Spacecraft Monitor
+    </a>
+    <a class="nav-item" href="/api/" style="text-decoration:none" target="_blank" title="REST API Browser">
+      <span class="ni">⚡</span> API Explorer
+      <span style="margin-left:auto;font-size:9px;color:var(--text-dim);background:var(--bg-panel);padding:1px 5px;border-radius:3px">EXT</span>
+    </a>
+    <a class="nav-item" href="/admin/" style="text-decoration:none" target="_blank" title="Django Admin Panel">
+      <span class="ni">⚙</span> Admin Panel
+      <span style="margin-left:auto;font-size:9px;color:var(--text-dim);background:var(--bg-panel);padding:1px 5px;border-radius:3px">EXT</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="status-row"><span class="dot dot-g"></span>Dataset Loaded</div>
+    <div class="status-row"><span class="dot dot-g"></span>ML Model Ready</div>
+    <div class="status-row"><span class="dot dot-b"></span>API Online</div>
+    <div class="bob-badge">⚡ Built with IBM Bob</div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════ TOPBAR ═══════════════════════════════════════ -->
+<header id="topbar">
+  <div class="topbar-left">
+    <button id="hamburger" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+    <div>
+      <div class="page-title" id="topbar-title">SpaceGuard AI</div>
+      <div class="page-subtitle">Space Weather Intelligence &amp; Launch Decision Support</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="warn-badge">⚠ AI Decision-Support Only — Not Autonomous Authorization</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <a href="/" title="Spacecraft Health Monitor" style="text-decoration:none;display:flex;align-items:center;gap:5px;background:var(--bg-panel);border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;border-radius:5px;font-size:11px;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue-light)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+        🛰 Spacecraft
+      </a>
+      <a href="/api/" target="_blank" title="REST API Explorer" style="text-decoration:none;display:flex;align-items:center;gap:5px;background:var(--bg-panel);border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;border-radius:5px;font-size:11px;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue-light)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+        ⚡ API
+      </a>
+      <a href="/admin/" target="_blank" title="Admin Panel" style="text-decoration:none;display:flex;align-items:center;gap:5px;background:var(--bg-panel);border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;border-radius:5px;font-size:11px;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue-light)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+        ⚙ Admin
+      </a>
+    </div>
+    <span class="ts-badge" id="ts-badge">Last Updated: <span id="live-time">—</span> UTC</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════ MAIN ═══════════════════════════════════════ -->
+<main id="main">
+
+<!-- ════════════════════ PAGE: LANDING ════════════════════ -->
+<section class="page active" id="page-landing">
+  <div class="hero-section">
+    <div class="hero-eyebrow">🛰 NASA-Inspired AI Decision Platform</div>
+    <div class="hero-title">SPACE WEATHER<br>INTELLIGENCE SYSTEM</div>
+    <div class="hero-sub-title">From Space Weather Data to Mission-Ready Intelligence</div>
+    <p class="hero-desc">
+      SpaceGuard AI analyzes real-time and historical solar activity using machine learning to predict launch risk and support safer, data-driven Go/No-Go decisions.
+    </p>
+    <div class="hero-cta">
+      <button class="btn btn-primary btn-lg" onclick="showPage('analyzer')">
+        <i class="bi bi-cpu-fill"></i> Analyze Launch Risk
+      </button>
+      <button class="btn btn-outline btn-lg" onclick="showPage('overview')">
+        <i class="bi bi-speedometer2"></i> Explore Dashboard
+      </button>
+    </div>
+    <div class="hero-model-badge">
+      <span class="pulse-dot"></span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">🛰 AI MODEL — READY</div>
+        <div style="font-size:11px;color:var(--text-muted)">Random Forest Classifier · 7 Features</div>
+      </div>
+    </div>
+    <div class="stats-strip">
+      <div class="stat-tile">
+        <div class="stat-val">NASA</div>
+        <div class="stat-lbl">Data Source<br>Space Weather</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-val">RF</div>
+        <div class="stat-lbl">AI Model<br>Random Forest</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-val">0–100</div>
+        <div class="stat-lbl">Risk Score<br>Scale</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-val">Live</div>
+        <div class="stat-lbl">Event Tracking<br>History &amp; Live</div>
+      </div>
+    </div>
+    <div class="tagline">"From Space Weather Data to Mission-Ready Intelligence."</div>
+
+    <!-- Platform Hub -->
+    <div style="margin-top:32px;width:100%;max-width:780px">
+      <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:700">
+        Platform Hub — All Dashboards
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div onclick="showPage('overview')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--bg-hover)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-card)'">
+          <div style="font-size:26px;margin-bottom:8px">🚀</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Space Weather</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Launch Risk AI</div>
+          <div style="margin-top:8px"><span style="font-size:10px;background:var(--green-glow);border:1px solid rgba(34,197,94,.3);color:var(--green);border-radius:4px;padding:2px 7px">ACTIVE</span></div>
+        </div>
+        <a href="/" style="text-decoration:none;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 12px;text-align:center;display:block;transition:all .2s" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--bg-hover)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-card)'">
+          <div style="font-size:26px;margin-bottom:8px">🛰</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Spacecraft Monitor</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Telemetry &amp; Health</div>
+          <div style="margin-top:8px"><span style="font-size:10px;background:var(--blue-glow);border:1px solid rgba(45,125,210,.3);color:var(--blue-light);border-radius:4px;padding:2px 7px">GO →</span></div>
+        </a>
+        <a href="/api/" target="_blank" style="text-decoration:none;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 12px;text-align:center;display:block;transition:all .2s" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--bg-hover)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-card)'">
+          <div style="font-size:26px;margin-bottom:8px">⚡</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">API Explorer</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">REST Endpoints</div>
+          <div style="margin-top:8px"><span style="font-size:10px;background:var(--purple-glow);border:1px solid rgba(124,92,216,.3);color:var(--purple-light);border-radius:4px;padding:2px 7px">OPEN ↗</span></div>
+        </a>
+        <a href="/admin/" target="_blank" style="text-decoration:none;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 12px;text-align:center;display:block;transition:all .2s" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--bg-hover)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-card)'">
+          <div style="font-size:26px;margin-bottom:8px">⚙</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Admin Panel</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Data Management</div>
+          <div style="margin-top:8px"><span style="font-size:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:var(--yellow);border-radius:4px;padding:2px 7px">OPEN ↗</span></div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: MISSION OVERVIEW ════════════════════ -->
+<section class="page" id="page-overview">
+  <!-- KPI Row -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Launch Risk</div>
+      <div class="kpi-value c-green" id="ov-risk-val">27%</div>
+      <div class="kpi-sub"><span class="badge-low">LOW</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">AI Confidence</div>
+      <div class="kpi-value c-blue" id="ov-conf-val">91%</div>
+      <div class="kpi-sub">Random Forest</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Solar Events</div>
+      <div class="kpi-value c-yellow" id="ov-events-val">18</div>
+      <div class="kpi-sub">Detected (48h window)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">System Status</div>
+      <div class="kpi-value c-green" style="font-size:18px;margin-top:4px">🟢 Operational</div>
+      <div class="kpi-sub">All systems nominal</div>
+    </div>
+  </div>
+
+  <!-- Main Layout: Decision + Charts -->
+  <div class="g-dash mb-4">
+    <!-- Left: Decision Card -->
+    <div class="decision-card">
+      <div class="card-label">Launch Decision</div>
+      <div class="decision-icon">🟢</div>
+      <div class="decision-label c-green">GO</div>
+      <div style="font-size:18px;color:var(--text);margin-bottom:12px">Launch Risk Score: <strong>27</strong> / 100</div>
+      <!-- Risk Scale -->
+      <div class="scale-bar">
+        <div class="scale-marker" style="left:27%"></div>
+      </div>
+      <div class="scale-labels">
+        <span>0 — LOW</span><span>30 — MEDIUM</span><span>70 — HIGH</span><span>100</span>
+      </div>
+      <div style="font-size:13px;color:var(--green);margin-top:12px;font-weight:600">✓ Suitable for launch operations</div>
+      <div class="disclaimer">⚠ AI-assisted recommendation only. Human mission operator authorization required.</div>
+    </div>
+
+    <!-- Right: Weather Trend + Risk Breakdown -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-label">Space Weather Trend (7-Day)</div>
+        <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-label">AI Risk Breakdown</div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">☀ Solar Flare Activity</span><span class="pb-pct">20%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-yellow" style="width:20%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">☄ CME Activity</span><span class="pb-pct">15%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-blue" style="width:15%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">🌍 Geomagnetic Index</span><span class="pb-pct">22%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-red" style="width:22%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">💨 Solar Wind Speed</span><span class="pb-pct">18%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-purple" style="width:18%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Insights Panel -->
+  <div class="card mb-4">
+    <div class="card-label">AI Insights</div>
+    <div class="insight-item">
+      <span class="insight-icon c-green">✓</span>
+      <span class="insight-text">Low geomagnetic activity — Kp index below threshold (max Kp: 2 in last 48h)</span>
+    </div>
+    <div class="insight-item">
+      <span class="insight-icon c-green">✓</span>
+      <span class="insight-text">No significant X-class solar flare detected in the 48-hour window</span>
+    </div>
+    <div class="insight-item">
+      <span class="insight-icon c-green">✓</span>
+      <span class="insight-text">Current conditions indicate low launch risk — model confidence 91%</span>
+    </div>
+    <div class="insight-item">
+      <span class="insight-icon c-yellow">⚠</span>
+      <span class="insight-text">1 M-class flare detected in prior 48h — monitor for follow-on CME activity</span>
+    </div>
+  </div>
+
+  <!-- Space Weather Event Cards -->
+  <div class="g3">
+    <div class="card">
+      <div class="card-label">☀ Solar Flares</div>
+      <div style="font-size:24px;font-weight:800;color:var(--yellow)">3</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Last: M1.4 — Aug 27 14:22 UTC</div>
+      <div style="margin-top:8px"><span class="badge-moderate">MODERATE</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">☄ CME Activity</div>
+      <div style="font-size:24px;font-weight:800;color:var(--blue-light)">1</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Last: Halo CME — Aug 26 09:10 UTC</div>
+      <div style="margin-top:8px"><span class="badge-low">LOW</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">🌍 Geomagnetic Storm</div>
+      <div style="font-size:24px;font-weight:800;color:var(--green)">0</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">No active storm — Kp max 2</div>
+      <div style="margin-top:8px"><span class="badge-low">QUIET</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: LAUNCH ANALYZER ════════════════════ -->
+<section class="page" id="page-analyzer">
+  <div class="g2">
+    <!-- Input Form -->
+    <div>
+      <div class="card2">
+        <div class="card-label" style="font-size:13px;margin-bottom:14px">🚀 Launch Risk Analyzer</div>
+        <div class="form-group">
+          <label class="form-label">Launch Date</label>
+          <input type="date" class="form-control" id="inp-date" value="2026-08-28">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Solar Flare Class</label>
+          <select class="form-control form-select" id="inp-flare">
+            <option value="0">A — Minimal (0 X-class / 0 M-class)</option>
+            <option value="1">C — Low activity</option>
+            <option value="2" selected>M — Moderate (M2.1)</option>
+            <option value="3">X — High intensity</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CME Activity</label>
+          <select class="form-control form-select" id="inp-cme">
+            <option value="0">None — No CME detected</option>
+            <option value="1" selected>Moderate — Partial halo</option>
+            <option value="2">Strong — Full halo CME</option>
+            <option value="3">Extreme — Multiple CMEs</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Geomagnetic Storm Level</label>
+          <select class="form-control form-select" id="inp-geo">
+            <option value="0">G0 — Quiet (Kp &lt; 4)</option>
+            <option value="1">G1 — Minor (Kp 4–5)</option>
+            <option value="2" selected>G2 — Moderate (Kp 6)</option>
+            <option value="3">G3 — Strong (Kp 7)</option>
+            <option value="4">G4–G5 — Severe/Extreme (Kp ≥ 8)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Solar Wind Speed (km/s)</label>
+          <input type="number" class="form-control" id="inp-wind" value="450" min="200" max="900" step="10">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Active Region (NOAA AR #)</label>
+          <input type="text" class="form-control" id="inp-ar" value="AR 14234" placeholder="e.g. AR 13456">
+        </div>
+        <div class="form-group">
+          <label class="form-label">X-class Flare Count (48h)</label>
+          <input type="number" class="form-control" id="inp-xcount" value="0" min="0" max="10">
+        </div>
+        <div class="form-group">
+          <label class="form-label">M-class Flare Count (48h)</label>
+          <input type="number" class="form-control" id="inp-mcount" value="1" min="0" max="20">
+        </div>
+        <button class="btn btn-primary btn-block btn-lg" onclick="runAnalysis()">
+          <i class="bi bi-cpu-fill"></i> Analyze with AI
+        </button>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:10px;text-align:center">
+          Random Forest Classifier · Feature Engineering · Risk Score 0–100
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Result Panel -->
+    <div>
+      <div class="card2" id="result-panel" style="display:none">
+        <div class="card-label" style="font-size:13px;margin-bottom:14px">🤖 AI Prediction</div>
+        <div style="text-align:center;margin-bottom:18px">
+          <div style="font-size:52px;margin-bottom:6px" id="res-icon">🟡</div>
+          <div style="font-size:28px;font-weight:900;margin-bottom:8px" id="res-decision">CAUTION</div>
+          <div id="res-badge-wrap"><span class="badge-caution">MODERATE RISK</span></div>
+        </div>
+        <div style="display:flex;gap:20px;justify-content:center;margin-bottom:18px">
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Launch Risk</div>
+            <div style="font-size:32px;font-weight:900" id="res-score">58</div>
+            <div style="font-size:13px;color:var(--text-muted)">/ 100</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Launch Prob.</div>
+            <div style="font-size:32px;font-weight:900" id="res-prob">42%</div>
+            <div style="font-size:13px;color:var(--text-muted)">favorable</div>
+          </div>
+        </div>
+        <!-- Risk Scale -->
+        <div class="scale-bar mb-3">
+          <div class="scale-marker" id="res-marker" style="left:58%"></div>
+        </div>
+        <div class="scale-labels mb-4"><span>0 LOW GO</span><span>30</span><span>70</span><span>100 HIGH NO-GO</span></div>
+        <hr class="sd">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Primary Risk Factors</div>
+        <div id="res-factors">
+          <div class="insight-item">
+            <span class="insight-icon c-yellow">⚠</span>
+            <span class="insight-text">Moderate CME activity detected in 48-hour window</span>
+          </div>
+          <div class="insight-item">
+            <span class="insight-icon c-yellow">⚠</span>
+            <span class="insight-text">Elevated geomagnetic activity (G2) increases risk score</span>
+          </div>
+          <div class="insight-item">
+            <span class="insight-icon c-green">✓</span>
+            <span class="insight-text">Solar flare activity within acceptable range (M-class)</span>
+          </div>
+        </div>
+        <div class="disclaimer mt-3">⚠ This is an AI-assisted decision-support recommendation. It is not an autonomous launch authorization. Final launch decisions require certified mission operators.</div>
+      </div>
+      <!-- Placeholder when no result -->
+      <div class="card" id="result-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">🤖</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Ready to Analyze</div>
+        <div style="font-size:13px;color:var(--text-muted);max-width:260px">Configure the space weather parameters and click <strong>Analyze with AI</strong> to receive a launch risk prediction.</div>
+      </div>
+
+      <!-- Risk Level Reference -->
+      <div class="card mt-3">
+        <div class="card-label">Risk Level Reference</div>
+        <table class="data-table">
+          <thead><tr><th>Score</th><th>Level</th><th>Decision</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>0 – 30</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td style="color:var(--text-muted)">Launch Monitoring</td></tr>
+            <tr><td>31 – 70</td><td><span class="badge-moderate">MEDIUM</span></td><td><span class="badge-caution">CAUTION</span></td><td style="color:var(--text-muted)">Review Conditions</td></tr>
+            <tr><td>71 – 100</td><td><span class="badge-high">HIGH</span></td><td><span class="badge-nogo">NO-GO</span></td><td style="color:var(--text-muted)">Delay / Monitor</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: SPACE WEATHER ════════════════════ -->
+<section class="page" id="page-weather">
+  <div class="card mb-4">
+    <div class="card-label">☀ Space Weather Analytics — Event Distribution</div>
+    <div class="g-dash2" style="align-items:start">
+      <div>
+        <div class="pb-wrap mt-2">
+          <div class="pb-row"><span class="pb-label">☀ Solar Flare</span><span class="pb-pct">42%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-yellow" style="width:42%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">☄ Coronal Mass Ejection (CME)</span><span class="pb-pct">28%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-blue" style="width:28%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">🌍 Geomagnetic Storm</span><span class="pb-pct">18%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-red" style="width:18%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">💨 High Speed Stream (HSS)</span><span class="pb-pct">12%</span></div>
+          <div class="pb-track"><div class="pb-fill pb-purple" style="width:12%"></div></div>
+        </div>
+      </div>
+      <div class="chart-wrap-sm"><canvas id="chart-event-dist"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g2 mb-4">
+    <div class="card">
+      <div class="card-label">Event Timeline (30-Day)</div>
+      <div class="chart-wrap-lg"><canvas id="chart-timeline"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Risk Trend (30-Day)</div>
+      <div class="chart-wrap-lg"><canvas id="chart-risk-trend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Events Table -->
+  <div class="card">
+    <div class="card-label">Recent Space Weather Events</div>
+    <div class="overflow-x">
+      <table class="data-table">
+        <thead>
+          <tr><th>Event ID</th><th>Type</th><th>Class</th><th>Begin Time</th><th>Source</th><th>Active Region</th><th>Risk</th></tr>
+        </thead>
+        <tbody id="events-tbody">
+          <tr><td>SW-2026-001</td><td><span class="badge-tag">CME</span></td><td>—</td><td>Aug 28, 06:34 UTC</td><td>S12W34</td><td>AR 14234</td><td><span class="badge-moderate">Medium</span></td></tr>
+          <tr><td>SW-2026-002</td><td><span class="badge-tag">Solar Flare</span></td><td>M2.1</td><td>Aug 27, 14:22 UTC</td><td>N08E12</td><td>AR 14234</td><td><span class="badge-low">Low</span></td></tr>
+          <tr><td>SW-2026-003</td><td><span class="badge-tag">Geo. Storm</span></td><td>G2</td><td>Aug 26, 22:10 UTC</td><td>—</td><td>—</td><td><span class="badge-high">High</span></td></tr>
+          <tr><td>SW-2026-004</td><td><span class="badge-tag">Solar Flare</span></td><td>C5.4</td><td>Aug 26, 09:55 UTC</td><td>S05W20</td><td>AR 14231</td><td><span class="badge-low">Low</span></td></tr>
+          <tr><td>SW-2026-005</td><td><span class="badge-tag">HSS</span></td><td>—</td><td>Aug 25, 18:00 UTC</td><td>—</td><td>—</td><td><span class="badge-low">Low</span></td></tr>
+          <tr><td>SW-2026-006</td><td><span class="badge-tag">CME</span></td><td>—</td><td>Aug 25, 03:15 UTC</td><td>N15W55</td><td>AR 14228</td><td><span class="badge-moderate">Medium</span></td></tr>
+          <tr><td>SW-2026-007</td><td><span class="badge-tag">Solar Flare</span></td><td>M1.0</td><td>Aug 24, 20:44 UTC</td><td>N08E12</td><td>AR 14234</td><td><span class="badge-moderate">Medium</span></td></tr>
+          <tr><td>SW-2026-008</td><td><span class="badge-tag">Solar Flare</span></td><td>X1.2</td><td>Aug 23, 11:30 UTC</td><td>S20W10</td><td>AR 14220</td><td><span class="badge-high">High</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: AI INSIGHTS ════════════════════ -->
+<section class="page" id="page-insights">
+  <div class="g-dash">
+    <!-- Left: Narrow summary -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-label">Current AI Assessment</div>
+        <div style="font-size:13px;color:var(--text-muted);font-style:italic;line-height:1.7;padding:10px;background:var(--bg-panel);border-radius:8px;border-left:3px solid var(--blue)">
+          "Current space-weather conditions indicate a <strong style="color:var(--green)">LOW launch risk</strong>. Geomagnetic activity is below storm threshold. No X-class flare events detected in the last 48 hours."
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text-dim)">Generated by: Random Forest Classification Model · IBM Bob AI</div>
+      </div>
+      <div class="card">
+        <div class="card-label">AI Recommendation</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--green-glow);border:1px solid rgba(34,197,94,.3);border-radius:8px">
+          <span style="font-size:28px">🟢</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--green)">Proceed with Normal Launch Monitoring</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">AI model output indicates relatively favorable conditions</div>
+          </div>
+        </div>
+        <div class="disclaimer" style="margin-top:10px">AI assessment based on historical space-weather patterns and engineered features. Not a substitute for operational mission systems.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Model Information</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Algorithm</span><span style="color:var(--text);font-weight:600">Random Forest Classifier</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Estimators</span><span style="color:var(--text)">100 trees</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Max Depth</span><span style="color:var(--text)">10</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Features</span><span style="color:var(--text)">7 engineered</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Target</span><span style="color:var(--text)">risk_level</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Train Split</span><span style="color:var(--text)">Before 2025-01-01</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Full insights -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-label">Why? — Key Risk Drivers</div>
+        <div class="insight-item">
+          <span class="insight-icon c-green">✓</span>
+          <span class="insight-text"><strong>Low geomagnetic activity</strong> — Kp index max 2 in 48h window. Storm count: 0. Contributes to low geomagnetic risk component.</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon c-green">✓</span>
+          <span class="insight-text"><strong>Stable solar-wind conditions</strong> — Solar wind speed 380 km/s, well within acceptable range (&lt;600 km/s threshold).</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon c-green">✓</span>
+          <span class="insight-text"><strong>No significant high-intensity flare</strong> — X-class flare count: 0. M-class count: 1 (within tolerable range).</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon c-yellow">⚠</span>
+          <span class="insight-text"><strong>1 M-class flare in 48h</strong> — Adds moderate weighting to risk score. Monitor for associated CME propagation.</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon c-yellow">⚠</span>
+          <span class="insight-text"><strong>Event trend slightly elevated</strong> — event_trend ratio: 1.3. Previous 24h had fewer events than current window.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Positive Indicators</div>
+        <div class="insight-item"><span class="insight-icon c-green">✓</span><span class="insight-text">C-class flare count in 48h window: 2 — within normal range</span></div>
+        <div class="insight-item"><span class="insight-icon c-green">✓</span><span class="insight-text">No geomagnetic storm active — storm_count feature = 0</span></div>
+        <div class="insight-item"><span class="insight-icon c-green">✓</span><span class="insight-text">Average Kp index: 1.8 — well below G1 threshold</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Watchlist — Monitor These Conditions</div>
+        <div class="insight-item"><span class="insight-icon c-yellow">👁</span><span class="insight-text">Active Region AR 14234 — produced M2.1 flare. Potential for further activity.</span></div>
+        <div class="insight-item"><span class="insight-icon c-yellow">👁</span><span class="insight-text">CME propagation tracking — halo CME from Aug 26. Earth-directed? Monitor LASCO data.</span></div>
+        <div class="insight-item"><span class="insight-icon c-yellow">👁</span><span class="insight-text">Event trend ratio — currently 1.3 (increasing). If trend exceeds 2.0, risk score escalates.</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Feature Contribution (Model)</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Model feature weights — xclass_flare_count is the highest-importance feature in the trained Random Forest.</div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">xclass_flare_count</span><span class="pb-pct">High</span></div>
+          <div class="pb-track"><div class="pb-fill pb-red" style="width:85%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">mclass_flare_count</span><span class="pb-pct">High</span></div>
+          <div class="pb-track"><div class="pb-fill pb-yellow" style="width:72%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">max_kp_index</span><span class="pb-pct">Medium</span></div>
+          <div class="pb-track"><div class="pb-fill pb-blue" style="width:58%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">storm_count</span><span class="pb-pct">Medium</span></div>
+          <div class="pb-track"><div class="pb-fill pb-purple" style="width:48%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">event_trend</span><span class="pb-pct">Medium</span></div>
+          <div class="pb-track"><div class="pb-fill pb-green" style="width:42%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">avg_kp_index</span><span class="pb-pct">Lower</span></div>
+          <div class="pb-track"><div class="pb-fill pb-blue" style="width:30%"></div></div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row"><span class="pb-label">cclass_flare_count</span><span class="pb-pct">Lower</span></div>
+          <div class="pb-track"><div class="pb-fill pb-yellow" style="width:22%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: RISK HISTORY ════════════════════ -->
+<section class="page" id="page-history">
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="card-label" style="margin-bottom:0">📊 Risk History</div>
+      <select class="form-control form-select" style="width:160px" id="hist-range" onchange="updateHistChart()">
+        <option value="7">Last 7 Days</option>
+        <option value="14">Last 14 Days</option>
+        <option value="30" selected>Last 30 Days</option>
+      </select>
+      <select class="form-control form-select" style="width:160px" id="hist-type">
+        <option>All Events</option>
+        <option>Solar Flare</option>
+        <option>CME</option>
+        <option>Geo. Storm</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-label">Risk Score Over Time</div>
+    <div class="chart-wrap-lg"><canvas id="chart-history"></canvas></div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="g3 mb-4">
+    <div class="kpi-card">
+      <div class="kpi-label">Average Risk Score</div>
+      <div class="kpi-value c-yellow">38%</div>
+      <div class="kpi-sub">30-day average</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Highest Risk</div>
+      <div class="kpi-value c-red">78%</div>
+      <div class="kpi-sub">Aug 23 — X1.2 flare</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Lowest Risk</div>
+      <div class="kpi-value c-green">12%</div>
+      <div class="kpi-sub">Aug 20 — Quiet period</div>
+    </div>
+  </div>
+
+  <!-- Risk History Table -->
+  <div class="card">
+    <div class="card-label">Daily Risk Summary</div>
+    <div class="overflow-x">
+      <table class="data-table">
+        <thead>
+          <tr><th>Date</th><th>Risk Score</th><th>Risk Level</th><th>Decision</th><th>X-Class</th><th>M-Class</th><th>Max Kp</th><th>Events</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Aug 28</td><td>27</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td>0</td><td>1</td><td>2</td><td>5</td></tr>
+          <tr><td>Aug 27</td><td>35</td><td><span class="badge-moderate">MODERATE</span></td><td><span class="badge-caution">CAUTION</span></td><td>0</td><td>2</td><td>3</td><td>6</td></tr>
+          <tr><td>Aug 26</td><td>62</td><td><span class="badge-high">HIGH</span></td><td><span class="badge-nogo">NO-GO</span></td><td>0</td><td>1</td><td>6</td><td>8</td></tr>
+          <tr><td>Aug 25</td><td>28</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td>0</td><td>0</td><td>3</td><td>4</td></tr>
+          <tr><td>Aug 24</td><td>44</td><td><span class="badge-moderate">MODERATE</span></td><td><span class="badge-caution">CAUTION</span></td><td>0</td><td>1</td><td>4</td><td>5</td></tr>
+          <tr><td>Aug 23</td><td>78</td><td><span class="badge-high">HIGH</span></td><td><span class="badge-nogo">NO-GO</span></td><td>1</td><td>0</td><td>5</td><td>9</td></tr>
+          <tr><td>Aug 22</td><td>18</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td>0</td><td>0</td><td>2</td><td>2</td></tr>
+          <tr><td>Aug 21</td><td>22</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td>0</td><td>0</td><td>1</td><td>3</td></tr>
+          <tr><td>Aug 20</td><td>12</td><td><span class="badge-low">LOW</span></td><td><span class="badge-go">GO</span></td><td>0</td><td>0</td><td>1</td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: MODEL PERFORMANCE ════════════════════ -->
+<section class="page" id="page-model">
+  <!-- Header badge -->
+  <div class="card mb-4" style="border-color:rgba(45,125,210,.3)">
+    <div style="text-align:center;padding:8px 0">
+      <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px">Model</div>
+      <div style="font-size:22px;font-weight:900;color:var(--text)">🧠 RANDOM FOREST CLASSIFIER</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">scikit-learn · 100 estimators · max_depth=10 · random_state=42</div>
+    </div>
+  </div>
+
+  <!-- Metrics KPI -->
+  <div class="kpi-grid mb-4">
+    <div class="kpi-card" style="border-color:rgba(34,197,94,.25)">
+      <div class="kpi-label">Accuracy</div>
+      <div class="kpi-value c-green">92%</div>
+      <div class="kpi-sub">Overall classification</div>
+    </div>
+    <div class="kpi-card" style="border-color:rgba(45,125,210,.25)">
+      <div class="kpi-label">Precision</div>
+      <div class="kpi-value c-blue">89%</div>
+      <div class="kpi-sub">True positive rate</div>
+    </div>
+    <div class="kpi-card" style="border-color:rgba(245,158,11,.25)">
+      <div class="kpi-label">Recall</div>
+      <div class="kpi-value c-yellow">91%</div>
+      <div class="kpi-sub">Sensitivity</div>
+    </div>
+    <div class="kpi-card" style="border-color:rgba(124,92,216,.25)">
+      <div class="kpi-label">F1 Score</div>
+      <div class="kpi-value c-purple">90%</div>
+      <div class="kpi-sub">Harmonic mean</div>
+    </div>
+  </div>
+
+  <div class="g2 mb-4">
+    <!-- Confusion Matrix -->
+    <div class="card">
+      <div class="card-label">Confusion Matrix</div>
+      <div style="text-align:center;margin-bottom:10px;font-size:11px;color:var(--text-muted)">Predicted →</div>
+      <div class="cm-grid">
+        <div class="cm-cell cm-tp">85<div class="cm-sub">TP</div></div>
+        <div class="cm-cell cm-fp">5<div class="cm-sub">FP</div></div>
+        <div class="cm-cell cm-fn">7<div class="cm-sub">FN</div></div>
+        <div class="cm-cell cm-tn">83<div class="cm-sub">TN</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-around;margin-top:8px">
+        <div class="cm-label">Actual: Positive</div>
+        <div class="cm-label">Actual: Negative</div>
+      </div>
+      <hr class="sd">
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--text-muted);flex-wrap:wrap">
+        <div>Total Test Records: <strong style="color:var(--text)">180</strong></div>
+        <div>Correct: <strong style="color:var(--green)">168</strong></div>
+        <div>Incorrect: <strong style="color:var(--red)">12</strong></div>
+      </div>
+    </div>
+
+    <!-- Feature Importance -->
+    <div class="card">
+      <div class="card-label">Feature Importance</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Relative importance from trained Random Forest model</div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">xclass_flare_count</span><span class="pb-pct">0.284</span></div>
+        <div class="pb-track"><div class="pb-fill pb-red" style="width:90%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">mclass_flare_count</span><span class="pb-pct">0.231</span></div>
+        <div class="pb-track"><div class="pb-fill pb-yellow" style="width:73%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">max_kp_index</span><span class="pb-pct">0.178</span></div>
+        <div class="pb-track"><div class="pb-fill pb-blue" style="width:56%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">storm_count</span><span class="pb-pct">0.124</span></div>
+        <div class="pb-track"><div class="pb-fill pb-purple" style="width:39%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">event_trend</span><span class="pb-pct">0.096</span></div>
+        <div class="pb-track"><div class="pb-fill pb-green" style="width:30%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">avg_kp_index</span><span class="pb-pct">0.058</span></div>
+        <div class="pb-track"><div class="pb-fill pb-blue" style="width:18%"></div></div>
+      </div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span class="pb-label">cclass_flare_count</span><span class="pb-pct">0.029</span></div>
+        <div class="pb-track"><div class="pb-fill pb-yellow" style="width:9%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Details -->
+  <div class="card mb-4">
+    <div class="card-label">Model Configuration &amp; Training Details</div>
+    <div class="g3">
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;font-weight:700;letter-spacing:1px">Algorithm</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Type</span><span>RandomForestClassifier</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">n_estimators</span><span>100</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">max_depth</span><span>10</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">random_state</span><span>42</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">n_jobs</span><span>-1</span></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;font-weight:700;letter-spacing:1px">Training Data</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Source</span><span>space_weather_unified.csv</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Train cutoff</span><span>2025-01-01</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Split type</span><span>Time-based</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Target variable</span><span>risk_level</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-muted)">Event types</span><span>Solar Flare, CME, Storm, HSS</span></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;font-weight:700;letter-spacing:1px">Risk Categories</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span class="badge-low">LOW</span><span>Score ≤ 20</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span class="badge-moderate">MODERATE</span><span>Score 21–40</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span class="badge-high">HIGH</span><span>Score 41–60</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px"><span style="background:rgba(255,51,102,.1);border:1px solid rgba(255,51,102,.3);color:#ff3366;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600">EXTREME</span><span>Score &gt; 60</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ML Pipeline -->
+  <div class="card">
+    <div class="card-label">ML Pipeline — Feature Engineering (48-Hour Window)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <span class="badge-tag">xclass_flare_count</span>
+      <span class="badge-tag">mclass_flare_count</span>
+      <span class="badge-tag">cclass_flare_count</span>
+      <span class="badge-tag">max_kp_index</span>
+      <span class="badge-tag">avg_kp_index</span>
+      <span class="badge-tag">storm_count</span>
+      <span class="badge-tag">event_trend</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.7">
+      Features are computed over a rolling 48-hour historical window for each date. <code style="background:var(--bg-panel);padding:1px 5px;border-radius:3px;font-size:11px">event_trend</code> is the ratio of events in the latest 24h vs prior 24h. Risk score is calculated from feature weights and mapped to risk level for model training.
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ PAGE: ABOUT ════════════════════ -->
+<section class="page" id="page-about">
+  <div class="g2">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-label">Problem Statement</div>
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.7">Space missions operate in complex environments significantly affected by solar weather. X-class solar flares, coronal mass ejections (CMEs), and geomagnetic storms can disrupt satellite communications, damage spacecraft electronics, and create hazardous radiation environments for crew and equipment.</p>
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.7;margin-top:8px">Mission operators currently rely on complex data streams from NASA/NOAA that require expert interpretation. SpaceGuard AI transforms this data into clear, AI-driven launch risk intelligence.</p>
+      </div>
+      <div class="card">
+        <div class="card-label">AI/ML Approach</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">1.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Data Ingestion</strong> — Load space_weather_unified.csv with event_type, begin_time, class_type, kp_index fields</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">2.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Feature Engineering</strong> — Build rolling 48-hour window features: X/M/C-class counts, Kp stats, storm counts, event trend ratio</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">3.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Risk Scoring</strong> — Formula: x_score + m_score + kp_score + trend_score → capped at 100</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">4.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Random Forest Training</strong> — 100-estimator classifier, time-based train/test split at 2025-01-01</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">5.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Prediction</strong> — Predict risk_level (LOW/MODERATE/HIGH/EXTREME) + launch probability</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--blue-light);font-weight:700;flex-shrink:0">6.</span><span style="color:var(--text-muted)"><strong style="color:var(--text)">Explainability</strong> — Feature importance from Random Forest, human-readable AI insight generation</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Technology Stack</div>
+        <div class="g2" style="gap:10px">
+          <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">FRONTEND</div><div style="font-size:12px;line-height:1.8;color:var(--text)">HTML5 · CSS3<br>Chart.js<br>Bootstrap Icons<br>Vanilla JS SPA</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">BACKEND</div><div style="font-size:12px;line-height:1.8;color:var(--text)">Python · Django<br>FastAPI (planned)<br>SQLite · REST API</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">AI / ML</div><div style="font-size:12px;line-height:1.8;color:var(--text)">scikit-learn<br>Random Forest<br>pandas · NumPy<br>joblib</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">DEVELOPMENT</div><div style="font-size:12px;line-height:1.8;color:var(--text)">IBM Bob AI<br>Primary dev tool<br>Code generation<br>Architecture</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-label">IBM Bob Integration</div>
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.7;margin-bottom:12px">IBM Bob was used as the primary AI development partner throughout the SpaceGuard AI project lifecycle:</p>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>Architecture design</strong> — System flowchart, API design, data pipeline structure</span></div>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>ML pipeline development</strong> — Feature engineering, risk scoring, model training code</span></div>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>Backend development</strong> — Django models, views, REST API endpoints</span></div>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>Frontend development</strong> — Dashboard UI/UX, chart integration, SPA navigation</span></div>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>Debugging</strong> — Error resolution, code review, optimization</span></div>
+        <div class="insight-item"><span class="insight-icon c-purple">⚡</span><span class="insight-text"><strong>Documentation</strong> — README, methodology docs, API documentation</span></div>
+        <div class="disclaimer mt-3">IBM Bob — IBM AI Builders Challenge · AI Development Partner</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Limitations &amp; Disclaimer</div>
+        <div class="insight-item"><span class="insight-icon c-yellow">⚠</span><span class="insight-text">SpaceGuard AI is an experimental prototype. It is not a certified operational launch safety system.</span></div>
+        <div class="insight-item"><span class="insight-icon c-yellow">⚠</span><span class="insight-text">Predictions are based on historical space-weather patterns. Future conditions may differ significantly.</span></div>
+        <div class="insight-item"><span class="insight-icon c-yellow">⚠</span><span class="insight-text">Risk thresholds and feature weights are project-defined, not NASA/NOAA validated operational criteria.</span></div>
+        <div class="insight-item"><span class="insight-icon c-yellow">⚠</span><span class="insight-text">Real mission operations require validated systems, real-time data feeds, and expert operator judgment.</span></div>
+        <div style="margin-top:12px;padding:12px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:12px;color:var(--yellow);line-height:1.7">
+          SpaceGuard AI is an experimental AI decision-support prototype. Its predictions are based on historical space-weather data and should not be interpreted as operational launch authorization or a substitute for validated aerospace mission systems.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Data Source</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.7">
+          Dataset: <code style="background:var(--bg-panel);padding:1px 5px;border-radius:3px;font-size:11px">space_weather_unified.csv</code><br>
+          Fields: event_id, event_type, begin_time, peak_time, end_time, class_type, source_location, active_region, date, kp_index, note<br>
+          Categories: Solar Flare (A/B/C/M/X class), CME, Geomagnetic Storm, High Speed Stream (HSS)<br>
+          Source: NASA/DONKI-derived space weather event data
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════════════════════════════ JAVASCRIPT ═══════════════════════════════════════ -->
+<script>
+// ── Navigation ──────────────────────────────────────────────────
+const pages = ['landing','overview','analyzer','weather','insights','history','model','about'];
+const titles = {
+  landing:  'SpaceGuard AI',
+  overview: 'Mission Overview',
+  analyzer: 'Launch Risk Analyzer',
+  weather:  'Space Weather Analytics',
+  insights: 'AI Mission Intelligence',
+  history:  'Risk History',
+  model:    'Model Performance',
+  about:    'About & Methodology',
+};
+
+function showPage(id) {
+  pages.forEach(p => {
+    const el = document.getElementById('page-'+p);
+    const nav = document.querySelectorAll('.nav-item');
+    if(el) el.classList.toggle('active', p===id);
+  });
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.getAttribute('onclick') === `showPage('${id}')`);
+  });
+  document.getElementById('topbar-title').textContent = titles[id] || 'SpaceGuard AI';
+  // Init charts on first show
+  if(id === 'overview') initOverviewCharts();
+  if(id === 'weather')  initWeatherCharts();
+  if(id === 'history')  initHistoryChart();
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
+  // Scroll to top
+  document.getElementById('main').scrollTop = 0;
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ── Live Time ────────────────────────────────────────────────────
+function updateTime() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  document.getElementById('live-time').textContent = `${h}:${m}`;
+}
+setInterval(updateTime, 10000);
+updateTime();
+
+// ── Risk Calculation Engine ──────────────────────────────────────
+function computeRisk(xClass, mClass, cClass, geoLevel, windSpeed, cmeLevel) {
+  const xScore  = Math.min(xClass * 40, 40);
+  const mScore  = Math.min(mClass * 25, 25);
+  const kpVal   = [0, 4, 6, 7, 9][geoLevel] || 0;
+  const kpScore = (kpVal / 9) * 20;
+  const windScore = windSpeed > 600 ? Math.min((windSpeed-600)/100*5, 10) : 0;
+  const cmeScore  = [0, 5, 10, 15][cmeLevel] || 0;
+  const total = xScore + mScore + kpScore + windScore + cmeScore;
+  return Math.min(Math.round(total), 100);
+}
+
+function getRiskLevel(score) {
+  if(score <= 20) return {level:'LOW',    decision:'GO',      icon:'🟢', cls:'c-green',  badgeCls:'badge-go',      decClass:'badge-low'};
+  if(score <= 40) return {level:'MODERATE',decision:'CAUTION',icon:'🟡', cls:'c-yellow', badgeCls:'badge-caution', decClass:'badge-moderate'};
+  if(score <= 60) return {level:'HIGH',   decision:'CAUTION',  icon:'🟠', cls:'c-yellow', badgeCls:'badge-caution', decClass:'badge-moderate'};
+  return              {level:'EXTREME', decision:'NO-GO',   icon:'🔴', cls:'c-red',    badgeCls:'badge-nogo',    decClass:'badge-high'};
+}
+
+function getFactors(xClass, mClass, geoLevel, cmeLevel, windSpeed) {
+  const factors = [];
+  if(xClass > 0)      factors.push({type:'bad', text:`X-class flare count: ${xClass} — Highest risk factor`});
+  if(mClass > 1)      factors.push({type:'warn', text:`M-class flares: ${mClass} — Elevated activity`});
+  if(geoLevel >= 3)   factors.push({type:'bad', text:`Severe geomagnetic storm (G${geoLevel}) — Major risk contributor`});
+  else if(geoLevel>=2) factors.push({type:'warn', text:`Moderate geomagnetic storm (G${geoLevel}) — Elevated geomagnetic activity`});
+  if(cmeLevel >= 2)   factors.push({type:'bad', text:'Strong CME detected — propagation risk to launch window'});
+  else if(cmeLevel>=1) factors.push({type:'warn', text:'Moderate CME activity — monitor for Earth-directed events'});
+  if(windSpeed > 600) factors.push({type:'warn', text:`Solar wind speed ${windSpeed} km/s — above 600 km/s threshold`});
+  if(xClass===0)      factors.push({type:'ok', text:'No X-class flare detected — highest risk factor absent'});
+  if(mClass <= 1)     factors.push({type:'ok', text:`M-class flare activity within acceptable range (${mClass} events)`});
+  if(geoLevel <= 1)   factors.push({type:'ok', text:'Geomagnetic activity quiet or minor — low Kp index'});
+  return factors.slice(0, 5);
+}
+
+function runAnalysis() {
+  const xClass   = parseInt(document.getElementById('inp-xcount').value) || 0;
+  const mClass   = parseInt(document.getElementById('inp-mcount').value) || 0;
+  const flare    = parseInt(document.getElementById('inp-flare').value) || 0;
+  const cmeLevel = parseInt(document.getElementById('inp-cme').value) || 0;
+  const geoLevel = parseInt(document.getElementById('inp-geo').value) || 0;
+  const windSpeed= parseInt(document.getElementById('inp-wind').value) || 400;
+  const cClass   = flare === 1 ? 2 : 0;
+
+  const score   = computeRisk(xClass, mClass, cClass, geoLevel, windSpeed, cmeLevel);
+  const risk    = getRiskLevel(score);
+  const prob    = Math.max(5, 100 - score);
+  const factors = getFactors(xClass, mClass, geoLevel, cmeLevel, windSpeed);
+
+  // Update result panel
+  document.getElementById('res-icon').textContent = risk.icon;
+  document.getElementById('res-decision').className = `decision-label ${risk.cls}`;
+  document.getElementById('res-decision').textContent = risk.decision;
+  document.getElementById('res-badge-wrap').innerHTML = `<span class="${risk.decClass}">${risk.level} RISK</span>`;
+  document.getElementById('res-score').textContent = score;
+  document.getElementById('res-score').className = risk.cls;
+  document.getElementById('res-prob').textContent = prob + '%';
+  document.getElementById('res-marker').style.left = score + '%';
+
+  const factorsHtml = factors.map(f => {
+    const iconCls = f.type==='ok'?'c-green':f.type==='warn'?'c-yellow':'c-red';
+    const icon    = f.type==='ok'?'✓':f.type==='warn'?'⚠':'✕';
+    return `<div class="insight-item"><span class="insight-icon ${iconCls}">${icon}</span><span class="insight-text">${f.text}</span></div>`;
+  }).join('');
+  document.getElementById('res-factors').innerHTML = factorsHtml;
+
+  document.getElementById('result-panel').style.display = 'block';
+  document.getElementById('result-placeholder').style.display = 'none';
+}
+
+// ── Chart Defaults ───────────────────────────────────────────────
+Chart.defaults.color = '#6b84a8';
+Chart.defaults.borderColor = '#1e3050';
+Chart.defaults.font.family = '-apple-system,"Segoe UI",system-ui,sans-serif';
+Chart.defaults.font.size = 11;
+
+const chartInstances = {};
+function safeChart(id, cfg) {
+  if(chartInstances[id]) { chartInstances[id].destroy(); }
+  const el = document.getElementById(id);
+  if(!el) return;
+  chartInstances[id] = new Chart(el, cfg);
+}
+
+// ── Generate demo data ────────────────────────────────────────────
+function genDays(n) {
+  const days = [];
+  const now = new Date();
+  for(let i=n-1;i>=0;i--) {
+    const d = new Date(now); d.setDate(d.getDate()-i);
+    days.push(`${d.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}`);
+  }
+  return days;
+}
+function rnd(min,max) { return Math.floor(Math.random()*(max-min+1))+min; }
+function genRisk(n) {
+  const vals = [12,18,22,35,44,78,28,62,35,27,15,20,38,55,70,45,30,22,18,42,60,35,20,15,28,40,32,25,18,27];
+  return vals.slice(0,n);
+}
+
+// ── Overview Charts ──────────────────────────────────────────────
+let overviewInited = false;
+function initOverviewCharts() {
+  if(overviewInited) return;
+  overviewInited = true;
+  const labels = genDays(14);
+  const riskData = genRisk(14);
+  safeChart('chart-trend', {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'Risk Score',
+        data:riskData,
+        borderColor:'#2d7dd2',
+        backgroundColor:'rgba(45,125,210,0.1)',
+        fill:true, tension:0.4, pointRadius:3, pointHoverRadius:5,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,grid:{color:'#1e3050'}},x:{grid:{color:'#1e3050'}}}}
+  });
+}
+
+// ── Weather Charts ───────────────────────────────────────────────
+let weatherInited = false;
+function initWeatherCharts() {
+  if(weatherInited) return;
+  weatherInited = true;
+  const labels30 = genDays(30);
+  const risk30 = genRisk(30);
+
+  safeChart('chart-event-dist', {
+    type:'doughnut',
+    data:{
+      labels:['Solar Flare','CME','Geo. Storm','HSS'],
+      datasets:[{data:[42,28,18,12],backgroundColor:['#f59e0b','#2d7dd2','#ef4444','#7c5cd8'],borderColor:'#0d1628',borderWidth:3}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{padding:12,boxWidth:12}}}}
+  });
+
+  safeChart('chart-timeline', {
+    type:'bar',
+    data:{
+      labels: labels30,
+      datasets:[
+        {label:'Solar Flare',data:labels30.map(()=>rnd(0,4)),backgroundColor:'rgba(245,158,11,0.7)',stack:'a'},
+        {label:'CME',        data:labels30.map(()=>rnd(0,2)),backgroundColor:'rgba(45,125,210,0.7)',stack:'a'},
+        {label:'Storm',      data:labels30.map(()=>rnd(0,1)),backgroundColor:'rgba(239,68,68,0.7)',stack:'a'},
+        {label:'HSS',        data:labels30.map(()=>rnd(0,1)),backgroundColor:'rgba(124,92,216,0.7)',stack:'a'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{stacked:true,grid:{color:'#1e3050'}},y:{stacked:true,grid:{color:'#1e3050'}}}}
+  });
+
+  safeChart('chart-risk-trend', {
+    type:'line',
+    data:{
+      labels:labels30,
+      datasets:[{
+        label:'Risk Score',
+        data:risk30,
+        borderColor:'#ef4444',
+        backgroundColor:'rgba(239,68,68,0.1)',
+        fill:true, tension:0.4, pointRadius:2,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,grid:{color:'#1e3050'}},x:{grid:{color:'#1e3050'}}}}
+  });
+}
+
+// ── History Chart ────────────────────────────────────────────────
+let historyInited = false;
+function initHistoryChart() {
+  if(historyInited) return;
+  historyInited = true;
+  updateHistChart();
+}
+
+function updateHistChart() {
+  const range = parseInt(document.getElementById('hist-range')?.value || 30);
+  const labels = genDays(range);
+  const riskData = genRisk(range);
+  const colors = riskData.map(v => v>60?'rgba(239,68,68,0.8)':v>30?'rgba(245,158,11,0.8)':'rgba(34,197,94,0.8)');
+
+  safeChart('chart-history', {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Risk Score',data:riskData,borderColor:'#4e9de8',backgroundColor:'rgba(78,157,232,0.08)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:colors,pointBorderColor:colors,pointHoverRadius:6},
+        {label:'GO Threshold',data:labels.map(()=>30),borderColor:'rgba(34,197,94,0.4)',borderDash:[5,3],pointRadius:0,fill:false},
+        {label:'NO-GO Threshold',data:labels.map(()=>70),borderColor:'rgba(239,68,68,0.4)',borderDash:[5,3],pointRadius:0,fill:false},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{padding:14,boxWidth:12}}},scales:{y:{min:0,max:100,grid:{color:'#1e3050'}},x:{grid:{color:'#1e3050'}}}}
+  });
+}
+
+// ── Init first page charts ───────────────────────────────────────
+initOverviewCharts();
+</script>
+</body>
+</html>
