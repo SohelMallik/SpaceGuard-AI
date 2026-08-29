@@ -220,28 +220,308 @@ class GraniteService:
     def ask_assistant(self, context: dict, question: str) -> dict:
         """
         Answer a mission operator question using injected mission context.
+        Uses IBM Granite if credentials are configured, otherwise uses the
+        built-in rule-based AI agent which reads real telemetry data.
         Never invents sensor values.
         """
-        if not self.api_key or not self.project_id:
-            return {
-                'answer': 'IBM Granite is not configured. Please set WATSONX_API_KEY and WATSONX_PROJECT_ID.',
-                'source': 'System',
-            }
+        if self.api_key and self.project_id:
+            prompt = ASSISTANT_PROMPT_TEMPLATE.format(
+                context_json=json.dumps(context, indent=2, default=str),
+                question=question,
+            )
+            try:
+                raw_text = self._call_granite(prompt)
+                return {
+                    'answer': raw_text,
+                    'source': 'IBM Granite (ibm/granite-13b-instruct-v2)',
+                }
+            except Exception as exc:
+                logger.error('Granite assistant call failed: %s', exc)
+                # Fall through to local agent
 
-        prompt = ASSISTANT_PROMPT_TEMPLATE.format(
-            context_json=json.dumps(context, indent=2, default=str),
-            question=question,
+        # ── Local AI Agent — answers from real telemetry context ──────────
+        return _local_ai_agent(context, question)
+
+
+def _local_ai_agent(context: dict, question: str) -> dict:
+    """
+    Rule-based AI agent that reads real telemetry, health, anomaly and alert
+    data from context and composes natural-language answers.
+    Returns structured answer and source label.
+    """
+    q = question.lower().strip()
+    tel = context.get('latest_telemetry', {})
+    health = context.get('health', {})
+    anomaly = context.get('latest_anomaly', {})
+    explanation = context.get('latest_explanation', {})
+    alerts = context.get('active_alerts', [])
+    spacecraft = context.get('spacecraft', 'the spacecraft')
+    mission = context.get('mission_name', 'this mission')
+    status = context.get('mission_status', 'ACTIVE')
+
+    # Helper: format a sensor value cleanly
+    def val(key, unit='', decimals=1):
+        v = tel.get(key)
+        if v is None:
+            return 'Not available'
+        return f'{round(float(v), decimals)}{unit}'
+
+    # ── Health / status queries ────────────────────────────────────────────
+    if any(w in q for w in ['health', 'status', 'overall', 'condition', 'how is', 'how are']):
+        score = health.get('health_score', 'N/A')
+        level = health.get('risk_level', 'N/A')
+        category = health.get('health_category', 'N/A')
+        breakdown = health.get('score_breakdown', {})
+        bd_parts = []
+        if breakdown.get('anomaly_severity', 0) < 0:
+            bd_parts.append(f"anomaly severity penalty: {breakdown['anomaly_severity']} pts")
+        if breakdown.get('threshold_violations', 0) < 0:
+            bd_parts.append(f"threshold violations: {breakdown['threshold_violations']} pts")
+        bd_str = '; '.join(bd_parts) if bd_parts else 'no deductions applied'
+        answer = (
+            f"**{spacecraft} — Health Report**\n\n"
+            f"• Health Score: **{score}/100** ({category})\n"
+            f"• Risk Level: **{level}**\n"
+            f"• Mission Status: {status}\n"
+            f"• Score Breakdown: {bd_str}\n\n"
         )
+        if level in ('HIGH', 'CRITICAL'):
+            answer += f"⚠ Action needed: {explanation.get('recommended_action', 'Review mission protocols.')}"
+        else:
+            answer += "✓ Systems are within acceptable operating parameters."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
 
-        try:
-            raw_text = self._call_granite(prompt)
-            return {
-                'answer': raw_text,
-                'source': 'IBM Granite (ibm/granite-13b-instruct-v2)',
-            }
-        except Exception as exc:
-            logger.error('Granite assistant call failed: %s', exc)
-            return {
-                'answer': 'Insufficient telemetry data is available to determine this, or the AI service is temporarily unavailable.',
-                'source': f'System (API error: {type(exc).__name__})',
-            }
+    # ── Anomaly queries ────────────────────────────────────────────────────
+    if any(w in q for w in ['anomaly', 'anomalies', 'problem', 'issue', 'fault', 'detected']):
+        is_anom = anomaly.get('is_anomaly', False)
+        severity = anomaly.get('severity', 'NORMAL')
+        subsystem = anomaly.get('affected_subsystem', 'UNKNOWN')
+        params = anomaly.get('suspicious_parameters', [])
+        score = anomaly.get('anomaly_score', 0)
+        if not is_anom and severity == 'NORMAL':
+            answer = (
+                f"✓ **No anomaly detected** on {spacecraft}.\n\n"
+                f"• Anomaly Score: {score} (low = normal)\n"
+                f"• All monitored parameters are within operating thresholds.\n"
+                f"• Continue nominal operations."
+            )
+        else:
+            params_str = ', '.join(params) if params else 'none identified'
+            problem = explanation.get('detected_problem', 'Anomalous sensor readings detected.')
+            cause = explanation.get('possible_cause', 'Under investigation.')
+            action = explanation.get('recommended_action', 'Consult mission protocols.')
+            answer = (
+                f"⚠ **Anomaly Detected — {severity}**\n\n"
+                f"• Affected Subsystem: **{subsystem}**\n"
+                f"• Anomaly Score: {score}\n"
+                f"• Suspicious Parameters: {params_str}\n"
+                f"• Problem: {problem}\n"
+                f"• Possible Cause: {cause}\n"
+                f"• Recommended Action: {action}"
+            )
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Temperature queries ────────────────────────────────────────────────
+    if any(w in q for w in ['temperature', 'temp', 'thermal', 'heat', 'hot', 'cold']):
+        t = tel.get('temperature')
+        if t is None:
+            return {'answer': 'Temperature data is not currently available.', 'source': 'SpaceGuard AI (Local Agent)'}
+        t = float(t)
+        status_str = '✓ Normal' if -50 <= t <= 85 else ('⚠ Warning' if t <= 100 else '🔴 Critical')
+        answer = (
+            f"**Thermal Subsystem — {spacecraft}**\n\n"
+            f"• Current Temperature: **{round(t,1)}°C**\n"
+            f"• Status: {status_str}\n"
+            f"• Normal Range: -50°C to 85°C | Critical: >100°C\n"
+        )
+        if t > 85:
+            answer += "\n⚠ Temperature is above the warning threshold. Monitor closely and consider thermal management procedures."
+        elif t > 100:
+            answer += "\n🔴 CRITICAL: Temperature exceeds safe limit. Immediate thermal management required."
+        else:
+            answer += "\n✓ Thermal conditions are nominal."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Battery / power queries ────────────────────────────────────────────
+    if any(w in q for w in ['battery', 'voltage', 'power', 'electrical', 'current', 'watt']):
+        bv = tel.get('battery_voltage')
+        bc = tel.get('battery_current')
+        pc = tel.get('power_consumption')
+        answer = (
+            f"**Electrical Subsystem — {spacecraft}**\n\n"
+            f"• Battery Voltage: **{val('battery_voltage', 'V')}**  (Normal: 22–32V | Critical: <18V)\n"
+            f"• Battery Current: **{val('battery_current', 'A')}**  (Normal: -5 to 20A)\n"
+            f"• Power Consumption: **{val('power_consumption', 'W', 0)}**  (Normal: <500W | Critical: >600W)\n"
+        )
+        warnings = []
+        if bv is not None and float(bv) < 22:
+            warnings.append(f"⚠ Battery voltage {round(float(bv),1)}V is below the 22V warning threshold.")
+        if bv is not None and float(bv) < 18:
+            warnings.append("🔴 CRITICAL: Battery voltage below 18V. Immediate action required.")
+        if pc is not None and float(pc) > 500:
+            warnings.append(f"⚠ Power consumption {round(float(pc),0)}W exceeds 500W warning threshold.")
+        answer += '\n' + '\n'.join(warnings) if warnings else '\n✓ Electrical systems are nominal.'
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Fuel queries ──────────────────────────────────────────────────────
+    if any(w in q for w in ['fuel', 'propulsion', 'propellant', 'thruster']):
+        f = tel.get('fuel_level')
+        if f is None:
+            return {'answer': 'Fuel level data is not available.', 'source': 'SpaceGuard AI (Local Agent)'}
+        f = float(f)
+        status_str = '🔴 Critical' if f < 5 else ('⚠ Warning' if f < 20 else '✓ Normal')
+        answer = (
+            f"**Propulsion Subsystem — {spacecraft}**\n\n"
+            f"• Fuel Level: **{round(f,1)}%**\n"
+            f"• Status: {status_str}\n"
+            f"• Warning threshold: <20% | Critical: <5%\n"
+        )
+        if f < 5:
+            answer += "\n🔴 CRITICAL: Fuel level is critically low. Emergency protocols may apply."
+        elif f < 20:
+            answer += "\n⚠ Fuel is below 20%. Plan resupply or mission duration adjustment."
+        else:
+            answer += "\n✓ Fuel reserves are adequate for continued operations."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Signal / communication queries ────────────────────────────────────
+    if any(w in q for w in ['signal', 'communication', 'comm', 'contact', 'radio', 'link']):
+        ss = tel.get('signal_strength')
+        if ss is None:
+            return {'answer': 'Signal strength data is not available.', 'source': 'SpaceGuard AI (Local Agent)'}
+        ss = float(ss)
+        status_str = '🔴 Critical' if ss < -130 else ('⚠ Weak' if ss < -120 else '✓ Normal')
+        answer = (
+            f"**Communication Subsystem — {spacecraft}**\n\n"
+            f"• Signal Strength: **{round(ss,1)} dBm**\n"
+            f"• Status: {status_str}\n"
+            f"• Normal: >-120 dBm | Critical: <-130 dBm\n"
+        )
+        if ss < -130:
+            answer += "\n🔴 CRITICAL: Signal below safe limit. Communication link may be compromised."
+        elif ss < -120:
+            answer += "\n⚠ Signal is weak. Monitor for communication disruptions."
+        else:
+            answer += "\n✓ Communication link is strong."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Radiation queries ─────────────────────────────────────────────────
+    if any(w in q for w in ['radiation', 'rad', 'particle', 'cosmic', 'dose']):
+        r = tel.get('radiation')
+        if r is None:
+            return {'answer': 'Radiation data is not available.', 'source': 'SpaceGuard AI (Local Agent)'}
+        r = float(r)
+        status_str = '🔴 Critical' if r > 100 else ('⚠ Elevated' if r > 50 else '✓ Normal')
+        answer = (
+            f"**Radiation Monitor — {spacecraft}**\n\n"
+            f"• Radiation Level: **{round(r,1)} mSv**\n"
+            f"• Status: {status_str}\n"
+            f"• Normal: <50 mSv | Critical: >100 mSv\n"
+        )
+        if r > 100:
+            answer += "\n🔴 CRITICAL: Radiation level exceeds safe limit. Review shielding and orbital position."
+        elif r > 50:
+            answer += "\n⚠ Elevated radiation. Monitor cumulative exposure and solar activity."
+        else:
+            answer += "\n✓ Radiation levels are within safe operational limits."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Velocity / navigation queries ─────────────────────────────────────
+    if any(w in q for w in ['velocity', 'speed', 'navigation', 'orbit', 'altitude']):
+        answer = (
+            f"**Navigation — {spacecraft}**\n\n"
+            f"• Velocity: **{val('velocity', ' km/s', 2)}**  (Normal: 0–30 km/s | Critical: >35 km/s)\n"
+        )
+        v = tel.get('velocity')
+        if v and float(v) > 30:
+            answer += f"\n⚠ Velocity {round(float(v),2)} km/s is above the 30 km/s warning threshold."
+        else:
+            answer += "\n✓ Velocity is within nominal range."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Pressure / environmental queries ──────────────────────────────────
+    if any(w in q for w in ['pressure', 'environmental', 'atmosphere', 'hull']):
+        answer = (
+            f"**Environmental — {spacecraft}**\n\n"
+            f"• Pressure: **{val('pressure', ' kPa')}**  (Normal: 95–110 kPa | Critical: >120 or <90 kPa)\n"
+        )
+        p = tel.get('pressure')
+        if p and (float(p) > 110 or float(p) < 95):
+            answer += f"\n⚠ Pressure {round(float(p),1)} kPa is outside the normal range."
+        else:
+            answer += "\n✓ Pressure is within nominal operating range."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Alert queries ─────────────────────────────────────────────────────
+    if any(w in q for w in ['alert', 'alarm', 'warning', 'critical', 'urgent']):
+        if not alerts:
+            answer = f"✓ **No active alerts** for {spacecraft}.\n\nAll monitored subsystems are operating within normal parameters."
+        else:
+            lines = [f"⚠ **{len(alerts)} Active Alert(s)** for {spacecraft}:\n"]
+            for a in alerts[:5]:
+                lines.append(f"• [{a.get('severity','?')}] {a.get('subsystem','?')} — {a.get('description','')[:100]}")
+            answer = '\n'.join(lines)
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Telemetry summary queries ─────────────────────────────────────────
+    if any(w in q for w in ['telemetry', 'sensors', 'readings', 'data', 'all', 'summary', 'report']):
+        answer = (
+            f"**Full Telemetry Summary — {spacecraft}**\n\n"
+            f"• Temperature:       {val('temperature', '°C')}\n"
+            f"• Battery Voltage:   {val('battery_voltage', 'V')}\n"
+            f"• Battery Current:   {val('battery_current', 'A')}\n"
+            f"• Fuel Level:        {val('fuel_level', '%')}\n"
+            f"• Radiation:         {val('radiation', ' mSv')}\n"
+            f"• Pressure:          {val('pressure', ' kPa')}\n"
+            f"• Signal Strength:   {val('signal_strength', ' dBm')}\n"
+            f"• Velocity:          {val('velocity', ' km/s', 2)}\n"
+            f"• Power Consumption: {val('power_consumption', 'W', 0)}\n\n"
+            f"Health Score: {health.get('health_score', 'N/A')}/100 | "
+            f"Risk Level: {health.get('risk_level', 'N/A')}"
+        )
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Mission / spacecraft info ─────────────────────────────────────────
+    if any(w in q for w in ['mission', 'spacecraft', 'name', 'who', 'what']):
+        answer = (
+            f"**Mission: {mission}**\n\n"
+            f"• Spacecraft: {spacecraft}\n"
+            f"• Status: {status}\n"
+            f"• Active Alerts: {len(alerts)}\n"
+            f"• Health Score: {health.get('health_score', 'N/A')}/100\n\n"
+            f"Ask me about temperature, battery, fuel, radiation, signal, anomalies, or any subsystem."
+        )
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Help / capabilities ───────────────────────────────────────────────
+    if any(w in q for w in ['help', 'can you', 'what can', 'capabilities', 'commands']):
+        answer = (
+            f"**SpaceGuard AI — Mission Assistant**\n\n"
+            f"I can answer questions about {spacecraft} using live telemetry data. Try asking:\n\n"
+            f"• 'What is the health status?'\n"
+            f"• 'Are there any anomalies?'\n"
+            f"• 'What is the temperature?'\n"
+            f"• 'Show battery and power status'\n"
+            f"• 'What is the fuel level?'\n"
+            f"• 'Check signal strength'\n"
+            f"• 'Show all telemetry readings'\n"
+            f"• 'Are there any active alerts?'\n"
+            f"• 'What is the radiation level?'"
+        )
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Default: show current readings + context ──────────────────────────
+    score = health.get('health_score', 'N/A')
+    level = health.get('risk_level', 'N/A')
+    severity = anomaly.get('severity', 'NORMAL')
+    answer = (
+        f"Based on current telemetry for **{spacecraft}**:\n\n"
+        f"• Health Score: {score}/100 | Risk: {level}\n"
+        f"• Anomaly Status: {severity}\n"
+        f"• Temperature: {val('temperature', '°C')} | "
+        f"Battery: {val('battery_voltage', 'V')} | "
+        f"Fuel: {val('fuel_level', '%')}\n\n"
+        f"Could you be more specific? Ask about a subsystem (temperature, battery, fuel, "
+        f"radiation, signal, pressure, velocity) or say 'show all telemetry'."
+    )
+    return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}

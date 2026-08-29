@@ -21,7 +21,7 @@ function sendMessage(missionId) {
   // Show typing indicator
   const typingId = 'typing-' + Date.now();
   history.insertAdjacentHTML('beforeend',
-    `<div id="${typingId}" class="chat-msg assistant text-muted fst-italic">SpaceGuard AI is thinking...</div>`
+    `<div id="${typingId}" class="chat-msg msg assistant" style="font-style:italic;opacity:0.7">SpaceGuard AI is thinking...</div>`
   );
   history.scrollTop = history.scrollHeight;
 
@@ -55,10 +55,38 @@ function appendMessage(container, text, role, source) {
     ? `<strong>${source || 'SpaceGuard AI'}</strong><br>`
     : '';
   const div = document.createElement('div');
-  div.className = `chat-msg ${role}`;
-  div.innerHTML = prefix + escapeHtml(text);
+  // Support both .chat-msg (spaceguard.css) and .msg (dashboard/index.html scoped styles)
+  div.className = `chat-msg msg ${role}`;
+  div.innerHTML = prefix + formatAgentText(text);
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Light markdown-style formatter for agent responses.
+ * Handles **bold**, bullet points, newlines — no external lib needed.
+ */
+function formatAgentText(text) {
+  // Escape HTML first
+  let safe = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  // **bold**
+  safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // Bullet lines starting with •
+  safe = safe.replace(/^• (.+)$/gm, '<span style="display:block;padding-left:10px">• $1</span>');
+
+  // Double newline → paragraph break
+  safe = safe.replace(/\n\n/g, '<br><br>');
+
+  // Single newline → line break
+  safe = safe.replace(/\n/g, '<br>');
+
+  return safe;
 }
 
 function escapeHtml(text) {

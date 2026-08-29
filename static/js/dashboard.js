@@ -11,21 +11,21 @@ const CHART_DEFAULTS = {
     tooltip: {
       mode: 'index',
       intersect: false,
-      backgroundColor: '#1c2230',
-      borderColor: '#30363d',
+      backgroundColor: '#ffffff',
+      borderColor: '#dde2ea',
       borderWidth: 1,
-      titleColor: '#7d8590',
-      bodyColor: '#e6edf3',
+      titleColor: '#5a6678',
+      bodyColor: '#1e2530',
     },
   },
   scales: {
     x: {
-      ticks: { color: '#7d8590', maxTicksLimit: 6, font: { size: 10 } },
-      grid: { color: 'rgba(48,54,61,0.5)' },
+      ticks: { color: '#9aa5b4', maxTicksLimit: 6, font: { size: 10 } },
+      grid: { color: '#e8ecf2' },
     },
     y: {
-      ticks: { color: '#7d8590', font: { size: 10 } },
-      grid: { color: 'rgba(48,54,61,0.5)' },
+      ticks: { color: '#9aa5b4', font: { size: 10 } },
+      grid: { color: '#e8ecf2' },
     },
   },
 };

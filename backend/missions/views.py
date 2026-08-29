@@ -7,6 +7,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import render, get_object_or_404
+from django.views.generic import TemplateView
 
 from missions.models import Mission
 from missions.serializers import MissionSerializer
@@ -211,3 +212,8 @@ def history_view(request, pk):
         'chart_data_json': json.dumps(chart_data),
         'telemetry_count': len(all_records),
     })
+
+
+def spaceguard_dashboard(request):
+    """SpaceGuard AI — Space Weather Intelligence Dashboard (standalone SPA)."""
+    return render(request, 'spaceguard_dashboard.html')

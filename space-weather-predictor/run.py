@@ -86,7 +86,7 @@ if __name__ == "__main__":
             'begin_time': dates,
             'peak_time': dates + pd.Timedelta(hours=1),
             'end_time': dates + pd.Timedelta(hours=2),
-            'class_type': ['X1.0', 'C-type', 'G1', '', 'M2.0', 'C3.0'] * 6 + ['X1.0', 'C-type', 'G1','','',''],
+            'class_type': (['X1.0', 'C-type', 'G1', '', 'M2.0', 'C3.0'] * 7)[:40],
             'source_location': ['S10W20'] * 40,
             'active_region': ['12345'] * 40,
             'date': dates,
