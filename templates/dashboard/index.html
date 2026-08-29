@@ -4,743 +4,379 @@
 {% block title %}SpaceGuard AI — {{ mission.spacecraft_name }}{% endblock %}
 
 {% block content %}
+<div class="container-fluid px-3 py-3">
 
-<style>
-  /* ── Spacecraft Monitor — Page Styles ─────────────────────── */
+  <!-- ── HEADER ROW ──────────────────────────────────────────────────── -->
+  <div class="row g-3 mb-3 align-items-stretch">
 
-  .sg-page { padding: 20px; }
-
-  /* Summary row */
-  .summary-grid {
-    display: grid;
-    grid-template-columns: 164px 200px 1fr;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-
-  /* Health ring card */
-  .health-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-radius: 10px;
-    padding: 18px 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    text-align: center;
-    box-shadow: 0 1px 4px rgba(30,37,48,.07);
-  }
-
-  .health-ring {
-    width: 88px; height: 88px;
-    border-radius: 50%;
-    border: 6px solid #dde2ea;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-  }
-  .ring-excellent { border-color: #22a066; }
-  .ring-good      { border-color: #0891a8; }
-  .ring-moderate  { border-color: #d4860f; }
-  .ring-high      { border-color: #c05c20; }
-  .ring-critical  { border-color: #dc3545; box-shadow: 0 0 12px rgba(220,53,69,.2); }
-
-  .health-num    { font-size: 28px; font-weight: 800; line-height: 1; color: #1e2530; }
-  .health-denom  { font-size: 11px; color: #9aa5b4; }
-
-  /* Mission info card */
-  .info-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-radius: 10px;
-    padding: 16px;
-    box-shadow: 0 1px 4px rgba(30,37,48,.07);
-  }
-
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid #f0f2f5;
-    font-size: 13px;
-  }
-  .info-row:last-child { border-bottom: none; }
-  .info-lbl  { color: #5a6678; }
-  .info-val  { color: #1e2530; font-weight: 600; }
-
-  /* AI Intelligence card */
-  .ai-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-left: 3px solid #5b47b0;
-    border-radius: 10px;
-    padding: 16px 18px;
-    box-shadow: 0 1px 4px rgba(30,37,48,.07);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .ai-card.border-critical { border-left-color: #dc3545; }
-  .ai-card.border-high     { border-left-color: #c05c20; }
-  .ai-card.border-moderate { border-left-color: #d4860f; }
-
-  .ai-meta {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .ai-meta-item {}
-  .ai-meta-label {
-    font-size: 10px; font-weight: 700;
-    color: #9aa5b4;
-    text-transform: uppercase; letter-spacing: .7px;
-    margin-bottom: 3px;
-  }
-  .ai-meta-value { font-size: 13px; color: #1e2530; line-height: 1.4; }
-
-  .ai-action-box {
-    background: #f4f6f9;
-    border: 1px solid #e8ecf2;
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin-bottom: 12px;
-  }
-  .ai-action-label { font-size: 10px; color: #9aa5b4; text-transform: uppercase; letter-spacing: .7px; }
-  .ai-action-text  { font-size: 13px; color: #2563a8; margin-top: 2px; font-weight: 500; }
-
-  .ai-empty {
-    font-size: 13px; color: #5a6678; padding: 10px 0;
-    display: flex; align-items: center; gap: 8px;
-  }
-
-  /* Section divider */
-  .section-label {
-    font-size: 10px; font-weight: 700;
-    color: #9aa5b4;
-    text-transform: uppercase; letter-spacing: 1px;
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 10px;
-  }
-  .section-label::after { content:''; flex:1; height:1px; background:#dde2ea; }
-
-  /* Telemetry sensor grid */
-  .telemetry-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .t-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-radius: 8px;
-    padding: 12px 8px;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(30,37,48,.06);
-    transition: border-color .15s;
-  }
-  .t-card.ok       { border-color: rgba(34,160,102,.35); background: rgba(34,160,102,.02); }
-  .t-card.warning  { border-color: rgba(212,134,15,.4);  background: rgba(212,134,15,.02); }
-  .t-card.critical { border-color: rgba(220,53,69,.5);   background: rgba(220,53,69,.03); animation: blink-border 1.8s infinite; }
-
-  @keyframes blink-border {
-    0%,100% { border-color: rgba(220,53,69,.5); }
-    50%      { border-color: rgba(220,53,69,.9); }
-  }
-
-  .t-icon { font-size: 16px; margin-bottom: 5px; color: #9aa5b4; display: block; }
-  .ok       .t-icon { color: #22a066; }
-  .warning  .t-icon { color: #d4860f; }
-  .critical .t-icon { color: #dc3545; }
-
-  .t-value  { font-size: 17px; font-weight: 700; color: #1e2530; line-height: 1.15; }
-  .t-label  { font-size: 9px;  font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: #5a6678; margin-top: 3px; }
-  .t-normal { font-size: 9.5px; color: #9aa5b4; margin-top: 2px; }
-
-  /* Main grid: charts + sidebar */
-  .main-grid {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 16px;
-  }
-
-  /* Charts card */
-  .charts-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-radius: 10px;
-    padding: 18px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 4px rgba(30,37,48,.07);
-  }
-
-  .charts-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-top: 14px;
-  }
-
-  /* Predictions */
-  .pred-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .pred-pill {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 10px;
-    border-radius: 6px;
-    background: #f4f6f9;
-    border: 1px solid #dde2ea;
-    font-size: 12px;
-  }
-  .pred-pill.rising  { border-color: rgba(181,44,44,.3); }
-  .pred-pill.falling { border-color: rgba(212,134,15,.3); }
-  .pred-pill.stable  { border-color: rgba(34,160,102,.25); }
-
-  .pp-param { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #9aa5b4; }
-  .pp-arrow { font-size: 14px; }
-  .rising  .pp-arrow { color: #dc3545; }
-  .falling .pp-arrow { color: #d4860f; }
-  .stable  .pp-arrow { color: #22a066; }
-  .pp-val  { font-weight: 700; color: #1e2530; }
-
-  .warn-strip {
-    background: #fff8e6;
-    border: 1px solid rgba(212,134,15,.3);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 12px;
-    color: #92620a;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* Sidebar cards */
-  .side-card {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 4px rgba(30,37,48,.07);
-  }
-
-  /* Alert rows */
-  .alert-item {
-    border-radius: 6px;
-    padding: 9px 11px;
-    margin-bottom: 7px;
-    border-left: 3px solid transparent;
-  }
-  .alert-item:last-child { margin-bottom: 0; }
-  .alert-critical { background: #fef0f0; border-left-color: #dc3545; }
-  .alert-high     { background: #fff4ee; border-left-color: #c05c20; }
-  .alert-moderate { background: #fff8e6; border-left-color: #d4860f; }
-  .alert-low      { background: #f4f6f9; border-left-color: #9aa5b4; }
-  .alert-normal   { background: #eaf6f0; border-left-color: #22a066; }
-
-  .alert-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-  .alert-sub   { font-size: 12px; font-weight: 600; color: #1e2530; }
-  .alert-desc  { font-size: 11.5px; color: #5a6678; line-height: 1.4; }
-  .alert-status {
-    font-size: 9.5px; font-weight: 700;
-    padding: 1px 6px; border-radius: 3px;
-    text-transform: uppercase; letter-spacing: .4px;
-    background: #f0f2f5; color: #5a6678;
-    border: 1px solid #dde2ea;
-  }
-
-  /* Count badge */
-  .count-badge {
-    font-size: 11px; font-weight: 700;
-    padding: 1px 8px; border-radius: 12px;
-    margin-left: 6px;
-  }
-  .count-badge.has-alerts { background: #fef0f0; color: #b52c2c; border: 1px solid rgba(181,44,44,.25); }
-  .count-badge.no-alerts  { background: #eaf6f0; color: #16794c; border: 1px solid rgba(22,121,76,.25); }
-
-  /* Chat */
-  .chat-box {
-    height: 210px;
-    overflow-y: auto;
-    background: #f4f6f9;
-    border: 1px solid #dde2ea;
-    border-radius: 8px;
-    padding: 10px;
-    display: flex; flex-direction: column; gap: 7px;
-    margin-bottom: 10px;
-  }
-  .msg {
-    padding: 8px 11px;
-    border-radius: 7px;
-    font-size: 12.5px;
-    line-height: 1.55;
-    max-width: 94%;
-  }
-  .msg.user {
-    background: #eaf2fb;
-    border: 1px solid rgba(37,99,168,.18);
-    color: #1e2530;
-    align-self: flex-end;
-    text-align: right;
-  }
-  .msg.assistant {
-    background: #fff;
-    border: 1px solid #dde2ea;
-    color: #1e2530;
-    align-self: flex-start;
-  }
-  .msg.assistant strong { color: #5b47b0; }
-
-  .chat-quick {
-    display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px;
-  }
-  .q-btn {
-    font-size: 11px; padding: 3px 9px;
-    border-radius: 4px;
-    background: #f0f2f5; border: 1px solid #dde2ea;
-    color: #5a6678; cursor: pointer;
-    transition: all .12s;
-  }
-  .q-btn:hover { border-color: #2563a8; color: #2563a8; background: #eaf2fb; }
-
-  .chat-note {
-    font-size: 10px; color: #9aa5b4; margin-top: 5px;
-    display: flex; align-items: center; gap: 5px;
-  }
-
-  /* Analysis detail */
-  .detail-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 14px;
-  }
-  .detail-label { font-size: 10px; color: #9aa5b4; text-transform: uppercase; letter-spacing: .7px; margin-bottom: 4px; font-weight: 700; }
-  .detail-val   { font-size: 12.5px; color: #1e2530; line-height: 1.5; }
-
-  /* Severity badges */
-  .sbadge {
-    display: inline-block;
-    padding: 2px 8px; border-radius: 4px;
-    font-size: 10px; font-weight: 700;
-    letter-spacing: .5px; text-transform: uppercase;
-  }
-  .sbadge-normal   { background: #eaf6f0; color: #16794c; border: 1px solid rgba(22,121,76,.2); }
-  .sbadge-low      { background: #e6f7f9; color: #0891a8; border: 1px solid rgba(8,145,168,.2); }
-  .sbadge-moderate { background: #fff8e6; color: #92620a; border: 1px solid rgba(146,98,10,.2); }
-  .sbadge-high     { background: #fff4ee; color: #c05c20; border: 1px solid rgba(192,92,32,.2); }
-  .sbadge-critical { background: #fef0f0; color: #b52c2c; border: 1px solid rgba(181,44,44,.2); }
-
-  .param-tag {
-    display: inline-block;
-    background: #fff8e6; color: #92620a;
-    border: 1px solid rgba(146,98,10,.2);
-    border-radius: 4px; padding: 1px 7px;
-    font-size: 11px; font-weight: 600;
-    margin-right: 3px; margin-bottom: 3px;
-  }
-
-  /* Responsive */
-  @media (max-width: 1100px) {
-    .summary-grid { grid-template-columns: 1fr 1fr; }
-    .ai-card-col  { grid-column: 1 / -1; }
-    .telemetry-grid { grid-template-columns: repeat(4,1fr); }
-    .main-grid  { grid-template-columns: 1fr; }
-    .charts-grid  { grid-template-columns: 1fr 1fr; }
-  }
-  @media (max-width: 720px) {
-    .summary-grid { grid-template-columns: 1fr; }
-    .telemetry-grid { grid-template-columns: repeat(2,1fr); }
-    .pred-grid  { grid-template-columns: 1fr 1fr; }
-    .detail-grid{ grid-template-columns: 1fr; }
-    .ai-meta    { grid-template-columns: 1fr 1fr; }
-    .charts-grid{ grid-template-columns: 1fr; }
-  }
-</style>
-
-<div class="sg-page">
-
-  <!-- ══ TOP SUMMARY ROW ════════════════════════════════════════ -->
-  <div class="summary-grid">
-
-    <!-- Health Score -->
-    <div class="health-card">
-      <div class="section-label" style="font-size:9.5px;margin-bottom:8px">Health Score</div>
-      {% with score=health.health_score|default:0 %}
-      <div class="health-ring
-        {% if score >= 90 %}ring-excellent
-        {% elif score >= 75 %}ring-good
-        {% elif score >= 60 %}ring-moderate
-        {% elif score >= 40 %}ring-high
-        {% else %}ring-critical{% endif %}">
-        <span class="health-num">{{ score }}</span>
-        <span class="health-denom">/100</span>
-      </div>
-      {% endwith %}
-
-      {% with rl=health.risk_level|lower|default:'normal' %}
-      <span class="sbadge sbadge-{{ rl }}">{{ health.risk_level|default:"NO DATA" }}</span>
-      {% endwith %}
-
-      <span style="font-size:11px;color:#5a6678;margin-top:2px">
-        {{ health.health_category|default:"Awaiting analysis" }}
-      </span>
-    </div>
-
-    <!-- Mission Information -->
-    <div class="info-card">
-      <div class="section-label" style="font-size:9.5px;margin-bottom:10px">Mission</div>
-      <div style="font-size:15px;font-weight:700;color:#1e2530;margin-bottom:3px">{{ mission.spacecraft_name }}</div>
-      <div style="font-size:12px;color:#5a6678;margin-bottom:12px;line-height:1.4">{{ mission.name }}</div>
-      <div class="info-row">
-        <span class="info-lbl">Launch Date</span>
-        <span class="info-val">{{ mission.launch_date|default:"—" }}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-lbl">Status</span>
-        <span class="status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-lbl">Active Alerts</span>
-        <span class="info-val" style="color:{% if alert_count > 0 %}#b52c2c{% else %}#16794c{% endif %}">
-          {{ alert_count }}
-        </span>
+    <!-- Health Score Card -->
+    <div class="col-md-3 col-lg-2">
+      <div class="card card-dark h-100 text-center d-flex flex-column align-items-center justify-content-center py-3">
+        {% with score=health.health_score|default:0 %}
+        <div class="health-ring
+          {% if score >= 90 %}ring-excellent
+          {% elif score >= 75 %}ring-good
+          {% elif score >= 60 %}ring-moderate
+          {% elif score >= 40 %}ring-high
+          {% else %}ring-critical{% endif %}">
+          <span class="health-score-num">{{ score }}</span>
+          <span class="health-score-denom">/100</span>
+        </div>
+        {% endwith %}
+        <div class="mt-2">
+          <span class="badge
+            {% if health.risk_level == 'NORMAL' %}bg-success
+            {% elif health.risk_level == 'LOW' %}bg-info text-dark
+            {% elif health.risk_level == 'MODERATE' %}bg-warning text-dark
+            {% elif health.risk_level == 'HIGH' %}bg-orange text-white
+            {% else %}bg-danger{% endif %} fs-6 px-3 py-2">
+            {{ health.risk_level|default:"NO DATA" }}
+          </span>
+        </div>
+        <div class="text-muted small mt-1">{{ health.health_category|default:"Awaiting analysis" }}</div>
+        <div class="text-muted small mt-2">
+          <i class="bi bi-building me-1"></i>{{ mission.spacecraft_name }}
+        </div>
       </div>
     </div>
 
-    <!-- AI Intelligence Panel -->
-    <div class="ai-card
-      {% if anomaly.severity == 'CRITICAL' %}border-critical
-      {% elif anomaly.severity == 'HIGH' %}border-high
-      {% elif anomaly.severity == 'MODERATE' %}border-moderate
-      {% endif %}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <i class="bi bi-cpu" style="font-size:15px;color:#5b47b0"></i>
-        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9aa5b4">AI Mission Intelligence</span>
-        {% if explanation.generated_by %}
-          <span class="badge-ai ms-auto">{{ explanation.generated_by|truncatechars:32 }}</span>
+    <!-- Mission Info -->
+    <div class="col-md-3 col-lg-3">
+      <div class="card card-dark h-100 p-3">
+        <div class="card-label">MISSION STATUS</div>
+        <h5 class="text-white mb-1">{{ mission.name }}</h5>
+        <div class="text-muted small mb-2">{{ mission.description|truncatewords:15 }}</div>
+        <div class="d-flex flex-column gap-1 mt-auto">
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Spacecraft</span>
+            <span class="text-white small">{{ mission.spacecraft_name }}</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Launch Date</span>
+            <span class="text-white small">{{ mission.launch_date|default:"—" }}</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Status</span>
+            <span class="badge bg-success small">{{ mission.status }}</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Active Alerts</span>
+            <span class="badge {% if alert_count > 0 %}bg-danger{% else %}bg-secondary{% endif %} small">{{ alert_count }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Anomaly Insight -->
+    <div class="col-md-6 col-lg-7">
+      <div class="card card-dark h-100 p-3
+        {% if anomaly.severity == 'CRITICAL' %}border-critical
+        {% elif anomaly.severity == 'HIGH' %}border-high
+        {% elif anomaly.severity == 'MODERATE' %}border-moderate
+        {% endif %}">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-cpu text-primary-accent fs-5"></i>
+          <span class="card-label mb-0">IBM GRANITE AI INSIGHT</span>
+          {% if explanation.generated_by %}
+            <span class="badge badge-ai ms-auto">{{ explanation.generated_by|truncatechars:30 }}</span>
+          {% endif %}
+        </div>
+        {% if explanation %}
+          <div class="row g-2">
+            <div class="col-6 col-lg-4">
+              <div class="text-muted x-small">DETECTED PROBLEM</div>
+              <div class="text-white small">{{ explanation.detected_problem|default:"—"|truncatewords:15 }}</div>
+            </div>
+            <div class="col-6 col-lg-2">
+              <div class="text-muted x-small">SEVERITY</div>
+              <span class="severity-badge severity-{{ anomaly.severity|lower|default:'normal' }}">
+                {{ anomaly.severity|default:"NORMAL" }}
+              </span>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="text-muted x-small">SUBSYSTEM</div>
+              <div class="text-white small">{{ explanation.affected_subsystem|default:"—" }}</div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="text-muted x-small">ANOMALY SCORE</div>
+              <div class="text-white small">{{ anomaly.anomaly_score|default:"—" }}</div>
+            </div>
+            <div class="col-12">
+              <div class="text-muted x-small">RECOMMENDED ACTION</div>
+              <div class="text-accent small">{{ explanation.recommended_action|default:"Continue nominal operations." }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="text-muted small mt-3">
+            <i class="bi bi-info-circle me-1"></i>
+            No analysis yet. Click <strong>Run Analysis</strong> or POST to <code>/api/missions/{{ mission.pk }}/analyze/</code>
+          </div>
         {% endif %}
-      </div>
-
-      {% if explanation %}
-        <div class="ai-meta">
-          <div class="ai-meta-item">
-            <div class="ai-meta-label">Detected Problem</div>
-            <div class="ai-meta-value">{{ explanation.detected_problem|default:"—"|truncatewords:18 }}</div>
-          </div>
-          <div class="ai-meta-item">
-            <div class="ai-meta-label">Severity</div>
-            {% with sv=anomaly.severity|lower|default:'normal' %}
-            <span class="sbadge sbadge-{{ sv }}">{{ anomaly.severity|default:"NORMAL" }}</span>
-            {% endwith %}
-          </div>
-          <div class="ai-meta-item">
-            <div class="ai-meta-label">Subsystem</div>
-            <div class="ai-meta-value">{{ explanation.affected_subsystem|default:"—" }}</div>
-          </div>
-          <div class="ai-meta-item">
-            <div class="ai-meta-label">Anomaly Score</div>
-            <div class="ai-meta-value">{{ anomaly.anomaly_score|default:"—" }}</div>
-          </div>
+        <div class="mt-auto pt-2 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
+            <i class="bi bi-play-fill me-1"></i>Run Analysis
+          </button>
+          <a href="/missions/{{ mission.pk }}/history/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-clock-history me-1"></i>History
+          </a>
         </div>
-        <div class="ai-action-box">
-          <div class="ai-action-label">Recommended Action</div>
-          <div class="ai-action-text">{{ explanation.recommended_action|default:"Continue nominal operations." }}</div>
-        </div>
-      {% else %}
-        <div class="ai-empty">
-          <i class="bi bi-info-circle" style="color:#2563a8;font-size:15px;flex-shrink:0"></i>
-          No analysis results yet. Click <strong style="color:#1e2530">Run Analysis</strong> below to generate an AI assessment.
-        </div>
-      {% endif %}
-
-      <div style="display:flex;gap:8px;margin-top:auto;padding-top:12px">
-        <button class="btn btn-primary btn-sm" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
-          <i class="bi bi-play-fill me-1"></i>Run Analysis
-        </button>
-        <a href="/missions/{{ mission.pk }}/history/" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-clock-history me-1"></i>History
-        </a>
-        <a href="/spaceguard/" class="btn btn-outline-secondary btn-sm ms-auto">
-          <i class="bi bi-sun me-1"></i>Space Weather
-        </a>
       </div>
     </div>
+  </div>
 
-  </div><!-- /summary-grid -->
-
-
-  <!-- ══ LIVE TELEMETRY SENSORS ════════════════════════════════ -->
+  <!-- ── TELEMETRY CARDS ─────────────────────────────────────────────── -->
   {% if latest_telemetry %}
-  <div class="section-label">Live Telemetry</div>
-  <div class="telemetry-grid">
-
-    <div class="t-card {% if latest_telemetry.temperature > 85 %}critical{% elif latest_telemetry.temperature > 70 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-thermometer-half"></i></span>
-      <div class="t-value">{{ latest_telemetry.temperature|floatformat:1 }}°C</div>
-      <div class="t-label">Temperature</div>
-      <div class="t-normal">–50 to 85°C</div>
+  <div class="row g-2 mb-3">
+    <!-- Temperature -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.temperature > 85 %}card-critical
+        {% elif latest_telemetry.temperature > 70 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-thermometer-half"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.temperature|floatformat:1 }}°C</div>
+        <div class="telemetry-label">TEMPERATURE</div>
+        <div class="telemetry-normal">Normal: -50 to 85°C</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.battery_voltage < 18 %}critical{% elif latest_telemetry.battery_voltage < 22 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-battery-charging"></i></span>
-      <div class="t-value">{{ latest_telemetry.battery_voltage|floatformat:1 }}V</div>
-      <div class="t-label">Battery</div>
-      <div class="t-normal">22–32 V</div>
+    <!-- Battery Voltage -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.battery_voltage < 18 %}card-critical
+        {% elif latest_telemetry.battery_voltage < 22 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-battery-charging"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.battery_voltage|floatformat:1 }}V</div>
+        <div class="telemetry-label">BATTERY VOLTAGE</div>
+        <div class="telemetry-normal">Normal: 22–32V</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.fuel_level < 10 %}critical{% elif latest_telemetry.fuel_level < 20 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-fuel-pump"></i></span>
-      <div class="t-value">{{ latest_telemetry.fuel_level|floatformat:1 }}%</div>
-      <div class="t-label">Fuel</div>
-      <div class="t-normal">Critical &lt;5%</div>
+    <!-- Fuel Level -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.fuel_level < 10 %}card-critical
+        {% elif latest_telemetry.fuel_level < 20 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-fuel-pump"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.fuel_level|floatformat:1 }}%</div>
+        <div class="telemetry-label">FUEL LEVEL</div>
+        <div class="telemetry-normal">Critical: &lt;5%</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.radiation > 100 %}critical{% elif latest_telemetry.radiation > 50 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-radioactive"></i></span>
-      <div class="t-value">{{ latest_telemetry.radiation|floatformat:1 }}</div>
-      <div class="t-label">Radiation mSv</div>
-      <div class="t-normal">&lt;50 mSv</div>
+    <!-- Radiation -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.radiation > 100 %}card-critical
+        {% elif latest_telemetry.radiation > 50 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-radioactive"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.radiation|floatformat:1 }} mSv</div>
+        <div class="telemetry-label">RADIATION</div>
+        <div class="telemetry-normal">Normal: &lt;50 mSv</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.pressure > 120 or latest_telemetry.pressure < 90 %}critical{% elif latest_telemetry.pressure > 110 or latest_telemetry.pressure < 95 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-speedometer2"></i></span>
-      <div class="t-value">{{ latest_telemetry.pressure|floatformat:1 }}</div>
-      <div class="t-label">Pressure kPa</div>
-      <div class="t-normal">95–110 kPa</div>
+    <!-- Pressure -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.pressure > 120 or latest_telemetry.pressure < 90 %}card-critical
+        {% elif latest_telemetry.pressure > 110 or latest_telemetry.pressure < 95 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-speedometer2"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.pressure|floatformat:1 }} kPa</div>
+        <div class="telemetry-label">PRESSURE</div>
+        <div class="telemetry-normal">Normal: 95–110 kPa</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.signal_strength < -130 %}critical{% elif latest_telemetry.signal_strength < -120 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-broadcast-pin"></i></span>
-      <div class="t-value">{{ latest_telemetry.signal_strength|floatformat:0 }}</div>
-      <div class="t-label">Signal dBm</div>
-      <div class="t-normal">&gt;–120 dBm</div>
+    <!-- Signal Strength -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.signal_strength < -130 %}card-critical
+        {% elif latest_telemetry.signal_strength < -120 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-broadcast-pin"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.signal_strength|floatformat:1 }} dBm</div>
+        <div class="telemetry-label">SIGNAL</div>
+        <div class="telemetry-normal">Normal: &gt;-120 dBm</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.velocity > 35 %}critical{% elif latest_telemetry.velocity > 30 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-speedometer"></i></span>
-      <div class="t-value">{{ latest_telemetry.velocity|floatformat:2 }}</div>
-      <div class="t-label">Velocity km/s</div>
-      <div class="t-normal">0–30 km/s</div>
+    <!-- Velocity -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.velocity > 35 %}card-critical
+        {% elif latest_telemetry.velocity > 30 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-speedometer"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.velocity|floatformat:2 }} km/s</div>
+        <div class="telemetry-label">VELOCITY</div>
+        <div class="telemetry-normal">Normal: 0–30 km/s</div>
+      </div>
     </div>
-
-    <div class="t-card {% if latest_telemetry.power_consumption > 600 %}critical{% elif latest_telemetry.power_consumption > 500 %}warning{% else %}ok{% endif %}">
-      <span class="t-icon"><i class="bi bi-lightning-charge"></i></span>
-      <div class="t-value">{{ latest_telemetry.power_consumption|floatformat:0 }}W</div>
-      <div class="t-label">Power</div>
-      <div class="t-normal">&lt;500 W</div>
+    <!-- Power Consumption -->
+    <div class="col-6 col-md-3 col-lg-3 col-xl">
+      <div class="card telemetry-card
+        {% if latest_telemetry.power_consumption > 600 %}card-critical
+        {% elif latest_telemetry.power_consumption > 500 %}card-warning
+        {% else %}card-ok{% endif %}">
+        <div class="telemetry-icon"><i class="bi bi-lightning-charge"></i></div>
+        <div class="telemetry-value">{{ latest_telemetry.power_consumption|floatformat:0 }}W</div>
+        <div class="telemetry-label">POWER</div>
+        <div class="telemetry-normal">Normal: &lt;500W</div>
+      </div>
     </div>
-
-  </div><!-- /telemetry-grid -->
-
+  </div>
   {% else %}
-  <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:#5a6678;display:flex;align-items:center;gap:10px">
-    <i class="bi bi-info-circle" style="color:#2563a8;font-size:16px"></i>
-    No telemetry data yet. Run
-    <code style="background:#f0f2f5;padding:2px 7px;border-radius:4px;font-size:12px;color:#2563a8;border:1px solid #dde2ea">python manage.py seed_telemetry</code>
-    to load sample data.
+  <div class="alert alert-secondary mb-3">
+    <i class="bi bi-info-circle me-2"></i>
+    No telemetry data. Run <code>python manage.py seed_telemetry</code> to load sample data.
   </div>
   {% endif %}
 
+  <!-- ── CHARTS + ALERTS + ASSISTANT ───────────────────────────────── -->
+  <div class="row g-3">
 
-  <!-- ══ MAIN CONTENT: CHARTS + SIDEBAR ════════════════════════ -->
-  <div class="main-grid">
-
-    <!-- LEFT: Charts column -->
-    <div>
-
-      <!-- Telemetry Charts -->
-      <div class="charts-card">
-        <div class="section-label">Telemetry Charts</div>
-        <div class="charts-grid">
-          <canvas id="tempChart"   height="115"></canvas>
-          <canvas id="voltChart"   height="115"></canvas>
-          <canvas id="fuelChart"   height="115"></canvas>
-          <canvas id="signalChart" height="115"></canvas>
+    <!-- Charts column -->
+    <div class="col-lg-8">
+      <div class="card card-dark p-3 mb-3">
+        <div class="card-label mb-3">TELEMETRY CHARTS</div>
+        <div class="row g-3">
+          <div class="col-md-6"><canvas id="tempChart" height="120"></canvas></div>
+          <div class="col-md-6"><canvas id="voltChart" height="120"></canvas></div>
+          <div class="col-md-6"><canvas id="fuelChart" height="120"></canvas></div>
+          <div class="col-md-6"><canvas id="signalChart" height="120"></canvas></div>
         </div>
       </div>
 
-      <!-- Trend Predictions -->
+      <!-- Prediction warnings -->
       {% if predictions %}
-      <div class="charts-card">
-        <div class="section-label">Trend Predictions</div>
-
-        {% for pred in predictions %}
+      <div class="card card-dark p-3 mb-3">
+        <div class="card-label mb-2">TREND PREDICTIONS</div>
+        <div class="row g-2">
+          {% for pred in predictions %}
           {% if pred.warning_message %}
-          <div class="warn-strip">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            {{ pred.warning_message }}
-            <span style="margin-left:auto;color:#5a6678">{{ pred.parameter|upper }} &rarr; {{ pred.predicted_value }}</span>
+          <div class="col-12">
+            <div class="alert alert-warning py-2 mb-0 small">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {{ pred.warning_message }}
+              <span class="float-end text-muted">{{ pred.parameter|upper }} → {{ pred.predicted_value }}</span>
+            </div>
           </div>
           {% endif %}
-        {% endfor %}
-
-        <div class="pred-grid">
+          {% endfor %}
           {% for pred in predictions %}
-            {% if not pred.warning_message %}
-            <div class="pred-pill {{ pred.trend_direction|lower }}">
-              <span class="pp-param">{{ pred.parameter|upper }}</span>
-              <span class="pp-arrow">
+          {% if not pred.warning_message %}
+          <div class="col-md-4">
+            <div class="prediction-pill trend-{{ pred.trend_direction|lower }}">
+              <span class="pred-param">{{ pred.parameter|upper }}</span>
+              <span class="pred-arrow">
                 {% if pred.trend_direction == 'RISING' %}<i class="bi bi-arrow-up-right"></i>
                 {% elif pred.trend_direction == 'FALLING' %}<i class="bi bi-arrow-down-right"></i>
                 {% else %}<i class="bi bi-arrow-right"></i>{% endif %}
               </span>
-              <span class="pp-val">{{ pred.predicted_value|default:"—" }}</span>
+              <span class="pred-val">{{ pred.predicted_value|default:"—" }}</span>
             </div>
-            {% endif %}
+          </div>
+          {% endif %}
           {% endfor %}
         </div>
       </div>
       {% endif %}
+    </div>
 
-      <!-- AI Analysis Detail -->
-      {% if explanation.evidence %}
-      <div class="charts-card">
-        <div class="section-label">AI Analysis Detail</div>
-        <div class="detail-grid">
-          <div>
-            <div class="detail-label">Evidence</div>
-            <div class="detail-val">{{ explanation.evidence }}</div>
+    <!-- Right column: Alerts + Assistant -->
+    <div class="col-lg-4">
+
+      <!-- Active Alerts -->
+      <div class="card card-dark p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="card-label mb-0">ACTIVE ALERTS</div>
+          <span class="badge {% if alert_count > 0 %}bg-danger{% else %}bg-secondary{% endif %}">{{ alert_count }}</span>
+        </div>
+        {% if active_alerts %}
+          {% for alert in active_alerts %}
+          <div class="alert-row severity-bg-{{ alert.severity|lower }}">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="severity-badge severity-{{ alert.severity|lower }}">{{ alert.severity }}</span>
+                <span class="text-white small ms-2">{{ alert.subsystem }}</span>
+              </div>
+              <span class="badge bg-secondary x-small">{{ alert.status }}</span>
+            </div>
+            <div class="text-muted small mt-1">{{ alert.description|truncatewords:20 }}</div>
           </div>
-          <div>
-            <div class="detail-label">Possible Cause</div>
-            <div class="detail-val">{{ explanation.possible_cause }}</div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted small py-2"><i class="bi bi-check-circle me-1 text-success"></i>No active alerts</div>
+        {% endif %}
+      </div>
+
+      <!-- AI Mission Assistant -->
+      <div class="card card-dark p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-chat-dots text-primary-accent"></i>
+          <div class="card-label mb-0">AI MISSION ASSISTANT</div>
+        </div>
+        <div id="chatHistory" class="chat-history mb-2">
+          <div class="chat-msg assistant">
+            <strong>SpaceGuard AI</strong><br>
+            Hello, Mission Operator. I'm your AI Mission Assistant powered by IBM Granite.
+            Ask me about spacecraft health, anomalies, or subsystem status.
           </div>
-          <div>
-            <div class="detail-label">Suspicious Parameters</div>
-            <div>
+        </div>
+        <div class="input-group input-group-sm">
+          <input type="text" id="chatInput" class="form-control chat-input"
+            placeholder="Ask about mission status..." maxlength="500">
+          <button class="btn btn-primary" onclick="sendMessage({{ mission.pk }})">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </div>
+        <div class="text-muted x-small mt-1">
+          <i class="bi bi-info-circle me-1"></i>AI uses only real telemetry data — no invented values.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- AI Evidence Detail -->
+  {% if explanation.evidence %}
+  <div class="row mt-3">
+    <div class="col-12">
+      <div class="card card-dark p-3">
+        <div class="card-label mb-2">AI ANALYSIS DETAIL</div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="text-muted x-small">EVIDENCE</div>
+            <div class="text-white small">{{ explanation.evidence }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted x-small">POSSIBLE CAUSE</div>
+            <div class="text-white small">{{ explanation.possible_cause }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted x-small">SUSPICIOUS PARAMETERS</div>
+            <div class="text-white small">
               {% for param in anomaly.suspicious_parameters %}
-                <span class="param-tag">{{ param }}</span>
+                <span class="badge bg-warning text-dark me-1">{{ param }}</span>
               {% empty %}
-                <span style="font-size:12px;color:#5a6678">None detected</span>
+                <span class="text-muted">None detected</span>
               {% endfor %}
             </div>
           </div>
         </div>
       </div>
-      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
-    </div><!-- /left column -->
-
-
-    <!-- RIGHT: Sidebar -->
-    <div>
-
-      <!-- Active Alerts -->
-      <div class="side-card">
-        <div style="display:flex;align-items:center;margin-bottom:12px">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9aa5b4">Active Alerts</span>
-          <span class="count-badge {% if alert_count > 0 %}has-alerts{% else %}no-alerts{% endif %}">
-            {{ alert_count }}
-          </span>
-        </div>
-
-        {% if active_alerts %}
-          {% for alert in active_alerts %}
-          <div class="alert-item alert-{{ alert.severity|lower }}">
-            <div class="alert-header">
-              <div style="display:flex;align-items:center;gap:7px">
-                <span class="sbadge sbadge-{{ alert.severity|lower }}">{{ alert.severity }}</span>
-                <span class="alert-sub">{{ alert.subsystem }}</span>
-              </div>
-              <span class="alert-status">{{ alert.status }}</span>
-            </div>
-            <div class="alert-desc">{{ alert.description|truncatewords:18 }}</div>
-          </div>
-          {% endfor %}
-        {% else %}
-          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5a6678;padding:4px 0">
-            <i class="bi bi-check-circle" style="color:#22a066;font-size:15px"></i>
-            No active alerts — all systems nominal
-          </div>
-        {% endif %}
-      </div>
-
-      <!-- AI Mission Assistant -->
-      <div class="side-card">
-        <div class="section-label" style="margin-bottom:10px">AI Mission Assistant</div>
-
-        <div id="chatHistory" class="chat-box">
-          <div class="msg assistant">
-            <strong>SpaceGuard AI</strong><br>
-            Hello, Mission Operator. Ask me about spacecraft health, anomalies, temperature, fuel, battery, signal, or any subsystem.
-          </div>
-        </div>
-
-        <div class="chat-quick">
-          <button class="q-btn" onclick="quickAsk('health status', {{ mission.pk }})">Health</button>
-          <button class="q-btn" onclick="quickAsk('any anomalies', {{ mission.pk }})">Anomalies</button>
-          <button class="q-btn" onclick="quickAsk('show all telemetry', {{ mission.pk }})">Telemetry</button>
-          <button class="q-btn" onclick="quickAsk('battery status', {{ mission.pk }})">Battery</button>
-          <button class="q-btn" onclick="quickAsk('fuel level', {{ mission.pk }})">Fuel</button>
-          <button class="q-btn" onclick="quickAsk('active alerts', {{ mission.pk }})">Alerts</button>
-        </div>
-
-        <div class="input-group input-group-sm">
-          <input type="text" id="chatInput" class="form-control"
-            style="background:#f4f6f9;border-color:#dde2ea;color:#1e2530;font-size:13px"
-            placeholder="Ask about mission status..." maxlength="500">
-          <button class="btn btn-primary btn-sm" onclick="sendMessage({{ mission.pk }})">
-            <i class="bi bi-send-fill"></i>
-          </button>
-        </div>
-        <div class="chat-note">
-          <i class="bi bi-shield-check" style="color:#22a066"></i>
-          Answers from real telemetry only — no invented values.
-        </div>
-      </div>
-
-    </div><!-- /sidebar -->
-
-  </div><!-- /main-grid -->
-
-</div><!-- /sg-page -->
+</div>
 {% endblock %}
-
 
 {% block extra_js %}
 <script src="{% static 'js/dashboard.js' %}"></script>
 <script src="{% static 'js/assistant.js' %}"></script>
 <script>
-/* Override Chart.js defaults for light theme */
-Chart.defaults.color       = '#5a6678';
-Chart.defaults.borderColor = '#e8ecf2';
-Chart.defaults.font.size   = 11;
-Chart.defaults.font.family = '-apple-system,"Segoe UI",system-ui,sans-serif';
-
 const CHART_DATA = {{ chart_data_json|safe }};
 const MISSION_ID = {{ mission.pk }};
 initCharts(CHART_DATA);
-
-function quickAsk(text, missionId) {
-  const input = document.getElementById('chatInput');
-  if (input) {
-    input.value = text;
-    sendMessage(missionId);
-  }
-}
-
-/* Override chat container ID used by assistant.js */
-document.addEventListener('DOMContentLoaded', () => {
-  /* assistant.js looks for #chatHistory — our element is also #chatHistory, OK */
-});
 </script>
 {% endblock %}

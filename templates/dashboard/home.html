@@ -8,67 +8,32 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/spaceguard.css' %}">
-  <style>
-    body { background: #f4f6f9; }
-    .navbar-spaceguard { background: #1b2332; border-bottom: 1px solid #263044; min-height: 54px; }
-    .main-content { background: #f4f6f9; }
-  </style>
 </head>
 <body>
-
 <nav class="navbar navbar-dark navbar-spaceguard">
-  <div class="container-fluid px-3">
-    <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/" style="color:#e8edf5;font-size:15px">
-      <i class="bi bi-satellite fs-5" style="color:#6da4d4"></i>
-      SpaceGuard AI
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+      <i class="bi bi-satellite fs-4 text-primary-accent"></i>
+      <span class="fw-bold">SpaceGuard AI</span>
     </a>
-    <div class="d-flex align-items-center gap-2">
-      <a href="/" class="btn btn-sm btn-primary d-flex align-items-center gap-1">
-        <i class="bi bi-satellite-fill"></i> Spacecraft
-      </a>
-      <a href="/spaceguard/" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-        <i class="bi bi-sun"></i> Space Weather
-      </a>
-      <a href="/api/" target="_blank" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-        <i class="bi bi-lightning-fill"></i> API
-      </a>
-      <a href="/admin/" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-        <i class="bi bi-gear-fill"></i> Admin
-      </a>
-    </div>
   </div>
 </nav>
-
-<main class="main-content d-flex align-items-center justify-content-center" style="min-height:75vh">
-  <div class="text-center" style="max-width:460px;padding:20px">
-    <i class="bi bi-satellite fs-1 d-block mb-3" style="color:#9aa5b4"></i>
-    <h4 style="color:#1e2530;font-weight:700;margin-bottom:8px">No Active Missions</h4>
-    <p style="color:#5a6678;margin-bottom:20px;font-size:14px">Seed the database to begin mission monitoring.</p>
-    <code style="display:block;background:#f0f2f5;border:1px solid #dde2ea;border-radius:6px;padding:8px 14px;font-size:13px;color:#2563a8;margin-bottom:20px">
-      python manage.py seed_telemetry
-    </code>
+<main class="main-content d-flex align-items-center justify-content-center" style="min-height:70vh;">
+  <div class="text-center">
+    <i class="bi bi-satellite fs-1 text-muted mb-3 d-block"></i>
+    <h3 class="text-white mb-2">No Active Missions</h3>
+    <p class="text-muted mb-4">Seed the database to begin mission monitoring.</p>
+    <code class="text-accent d-block mb-3">python manage.py seed_telemetry</code>
     {% if missions %}
-    <div class="mb-4">
-      <p style="font-size:13px;color:#5a6678;margin-bottom:10px">All missions:</p>
+    <div class="mt-4">
+      <p class="text-muted">All missions:</p>
       {% for m in missions %}
-        <a href="/missions/{{ m.pk }}/" class="btn btn-outline-secondary btn-sm me-2 mb-1">{{ m.spacecraft_name }}</a>
+        <a href="/missions/{{ m.pk }}/" class="btn btn-outline-secondary btn-sm me-2">{{ m.spacecraft_name }}</a>
       {% endfor %}
     </div>
     {% endif %}
-    <div class="d-flex gap-2 justify-content-center flex-wrap mt-3">
-      <a href="/spaceguard/" class="btn btn-primary d-flex align-items-center gap-1">
-        <i class="bi bi-sun"></i> Space Weather Dashboard
-      </a>
-      <a href="/admin/" class="btn btn-outline-secondary d-flex align-items-center gap-1">
-        <i class="bi bi-gear"></i> Admin Panel
-      </a>
-      <a href="/api/" target="_blank" class="btn btn-outline-secondary d-flex align-items-center gap-1">
-        <i class="bi bi-lightning"></i> API Explorer
-      </a>
-    </div>
+    <a href="/admin/" class="btn btn-primary mt-4">Open Admin Panel</a>
   </div>
 </main>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -4,255 +4,55 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}SpaceGuard AI{% endblock %}</title>
-
+  <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
+  <!-- SpaceGuard CSS -->
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/spaceguard.css' %}">
-
-  <style>
-    :root {
-      --navy:      #1b2332;
-      --navy-mid:  #263044;
-      --blue:      #2563a8;
-      --blue-light:#3b82c4;
-      --blue-bg:   #eaf2fb;
-      --page-bg:   #f4f6f9;
-      --card-bg:   #ffffff;
-      --panel-bg:  #f0f2f5;
-      --border:    #dde2ea;
-      --text:      #1e2530;
-      --text-sub:  #5a6678;
-      --text-dim:  #9aa5b4;
-      --green:     #16794c;
-      --green-bg:  #eaf6f0;
-      --green-mid: #22a066;
-      --yellow:    #92620a;
-      --yellow-bg: #fff8e6;
-      --yellow-mid:#d4860f;
-      --red:       #b52c2c;
-      --red-bg:    #fef0f0;
-      --red-mid:   #dc3545;
-      --shadow:    0 1px 4px rgba(30,37,48,0.08);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--page-bg);
-      color: var(--text);
-      font-family: -apple-system, "Segoe UI", system-ui, Roboto, Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    /* ── Navbar ── */
-    .navbar-spaceguard {
-      background: var(--navy);
-      border-bottom: 1px solid var(--navy-mid);
-      min-height: 54px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-    }
-
-    .navbar-brand {
-      color: #e8edf5 !important;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-    }
-    .navbar-brand:hover { color: #ffffff !important; }
-    .navbar-brand i { color: #6da4d4 !important; }
-
-    .badge-ai {
-      display: inline-flex; align-items: center;
-      padding: 3px 8px;
-      border-radius: 4px;
-      background: rgba(37,99,168,0.3);
-      border: 1px solid rgba(37,99,168,0.4);
-      color: #93c5fd;
-      font-size: 9px; font-weight: 700;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-    }
-
-    .nav-platform-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 11px;
-      border-radius: 6px;
-      color: #8fa3bc;
-      text-decoration: none;
-      font-size: 12px; font-weight: 500;
-      transition: all 0.13s;
-    }
-    .nav-platform-btn:hover { color: #ffffff; background: rgba(255,255,255,0.08); }
-    .nav-platform-btn.active { color: #93c5fd; background: rgba(37,99,168,0.25); }
-    .nav-platform-btn i { font-size: 13px; }
-
-    /* ── Mission bar ── */
-    .mission-bar {
-      min-height: 40px;
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 14px;
-      background: #ffffff;
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-      scrollbar-width: thin;
-      box-shadow: var(--shadow);
-    }
-
-    .mission-pill {
-      display: inline-flex; align-items: center;
-      white-space: nowrap;
-      padding: 5px 11px;
-      border-radius: 5px;
-      border: 1px solid transparent;
-      color: var(--text-sub);
-      text-decoration: none;
-      font-size: 11px; font-weight: 500;
-      transition: all 0.13s;
-    }
-    .mission-pill:hover   { color: var(--blue); background: var(--blue-bg); border-color: #cce0f4; }
-    .mission-pill.active  { color: var(--blue); background: var(--blue-bg); border-color: #b8d5ef; font-weight: 600; }
-
-    /* ── Main content ── */
-    .main-content { min-height: calc(100vh - 150px); background: var(--page-bg); }
-
-    /* ── Cards ── */
-    .dashboard-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-    }
-
-    /* ── Status badges ── */
-    .status-badge-operational,
-    .status-badge-active,
-    .status-badge-healthy {
-      display: inline-flex; align-items: center;
-      padding: 3px 8px; border-radius: 20px;
-      background: var(--green-bg); color: var(--green);
-      font-size: 10px; font-weight: 700; text-transform: capitalize;
-      border: 1px solid rgba(22,121,76,.2);
-    }
-    .status-badge-warning,
-    .status-badge-monitoring {
-      display: inline-flex; align-items: center;
-      padding: 3px 8px; border-radius: 20px;
-      background: var(--yellow-bg); color: var(--yellow);
-      font-size: 10px; font-weight: 700;
-      border: 1px solid rgba(146,98,10,.2);
-    }
-    .status-badge-critical,
-    .status-badge-error {
-      display: inline-flex; align-items: center;
-      padding: 3px 8px; border-radius: 20px;
-      background: var(--red-bg); color: var(--red);
-      font-size: 10px; font-weight: 700;
-      border: 1px solid rgba(181,44,44,.2);
-    }
-
-    /* ── Flash messages ── */
-    .alert { border-radius: 7px; border: 1px solid var(--border); font-size: 13px; }
-
-    /* ── Footer ── */
-    .footer-spaceguard {
-      padding: 14px 15px;
-      background: #ffffff;
-      border-top: 1px solid var(--border);
-    }
-    .footer-spaceguard a { transition: color 0.13s; }
-    .footer-spaceguard a:hover { color: var(--blue) !important; text-decoration: underline !important; }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--panel-bg); }
-    ::-webkit-scrollbar-thumb { background: #c8d0d9; border-radius: 6px; }
-    ::-webkit-scrollbar-thumb:hover { background: #b0b9c4; }
-
-    @media (max-width: 768px) {
-      .navbar-spaceguard { min-height: 50px; }
-      .navbar-brand { font-size: 14px; }
-      .badge-ai { display: none; }
-      .mission-bar { padding-left: 10px; padding-right: 10px; }
-      .main-content { min-height: calc(100vh - 120px); }
-      .footer-spaceguard { font-size: 11px !important; line-height: 1.7; }
-    }
-  </style>
 </head>
-
 <body>
 
-<!-- Navbar -->
+<!-- Navigation -->
 <nav class="navbar navbar-dark navbar-spaceguard">
-  <div class="container-fluid px-3 gap-3">
-
-    <a class="navbar-brand d-flex align-items-center gap-2 me-0" href="/">
-      <i class="bi bi-satellite fs-5"></i>
-      <span>SpaceGuard AI</span>
-      <span class="badge-ai">IBM Granite</span>
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+      <i class="bi bi-satellite fs-4 text-primary-accent"></i>
+      <span class="fw-bold">SpaceGuard AI</span>
+      <span class="badge badge-ai ms-1">IBM Granite</span>
     </a>
-
-    <div class="d-none d-md-flex align-items-center gap-1 ms-3 flex-grow-1">
-      <a href="/"
-        class="nav-platform-btn {% if '/spaceguard' not in request.path and '/api' not in request.path and '/admin' not in request.path %}active{% endif %}">
-        <i class="bi bi-satellite-fill"></i>
-        <span>Spacecraft Monitor</span>
-      </a>
-      <a href="/spaceguard/"
-        class="nav-platform-btn {% if '/spaceguard' in request.path %}active{% endif %}">
-        <i class="bi bi-sun"></i>
-        <span>Space Weather</span>
-      </a>
-      <a href="/api/" target="_blank" class="nav-platform-btn">
-        <i class="bi bi-lightning-fill"></i>
-        <span>API</span>
-        <i class="bi bi-box-arrow-up-right" style="font-size:9px"></i>
-      </a>
-    </div>
-
-    <div class="d-flex align-items-center gap-2 ms-auto">
+    <div class="d-flex align-items-center gap-3">
       {% if mission %}
-        <span class="d-none d-lg-inline" style="font-size:11px;color:#8fa3bc">{{ mission.spacecraft_name }}</span>
-        <span class="status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
+        <span class="text-muted small">Mission:</span>
+        <span class="text-white fw-semibold">{{ mission.name }}</span>
+        <span class="badge status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
       {% endif %}
-      <a href="/admin/" class="nav-platform-btn">
-        <i class="bi bi-gear"></i>
-        <span class="d-none d-sm-inline">Admin</span>
-      </a>
+      <a href="/admin/" class="btn btn-outline-secondary btn-sm">Admin</a>
     </div>
-
   </div>
 </nav>
 
-<!-- Mission selector -->
+<!-- Mission selector sidebar indicator -->
 {% if all_missions %}
 <div class="mission-bar">
   {% for m in all_missions %}
-    <a href="/missions/{{ m.pk }}/"
-      class="mission-pill {% if mission and m.pk == mission.pk %}active{% endif %}">
-      <i class="bi bi-satellite-fill me-1" style="font-size:10px"></i>
-      {{ m.spacecraft_name }}
+    <a href="/missions/{{ m.pk }}/" class="mission-pill {% if mission and m.pk == mission.pk %}active{% endif %}">
+      <i class="bi bi-satellite-fill me-1"></i>{{ m.spacecraft_name }}
     </a>
   {% endfor %}
-  <a href="/spaceguard/" class="mission-pill ms-auto">
-    <i class="bi bi-sun me-1"></i>
-    Space Weather
-    <i class="bi bi-arrow-right ms-1"></i>
-  </a>
 </div>
 {% endif %}
 
 <!-- Flash messages -->
 {% if messages %}
-<div class="container-fluid px-3 pt-2">
+<div class="container-fluid mt-2">
   {% for message in messages %}
-    <div class="alert alert-{{ message.tags }} alert-dismissible fade show py-2" role="alert" style="font-size:13px">
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
       {{ message }}
-      <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
   {% endfor %}
 </div>
@@ -265,22 +65,17 @@
 
 <!-- Footer -->
 <footer class="footer-spaceguard">
-  <div class="container-fluid text-center" style="font-size:12px;color:var(--text-sub)">
-    SpaceGuard AI &mdash; Spacecraft Health Monitoring &mdash;
-    Built with <strong style="color:var(--text)">IBM Bob</strong> &amp; <strong style="color:var(--text)">IBM Granite</strong>
-    &mdash; IBM AI Builders Challenge
-    &nbsp;|&nbsp;
-    <a href="/spaceguard/" style="color:var(--blue);text-decoration:none">
-      <i class="bi bi-sun"></i> Space Weather Dashboard
-    </a>
-    &nbsp;|&nbsp;
-    <a href="/api/" target="_blank" style="color:var(--text-sub);text-decoration:none">API</a>
+  <div class="container-fluid text-center">
+    <span class="text-muted small">
+      SpaceGuard AI &mdash; AI-Powered Spacecraft Health Monitoring &mdash;
+      Built with <strong>IBM Bob</strong> &amp; <strong>IBM Granite</strong> &mdash;
+      IBM AI Builders Challenge
+    </span>
   </div>
 </footer>
 
+<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 {% block extra_js %}{% endblock %}
-
 </body>
 </html>
