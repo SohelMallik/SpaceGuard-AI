@@ -24,18 +24,34 @@
       <span class="fw-bold">SpaceGuard AI</span>
       <span class="badge badge-ai ms-1">IBM Granite</span>
     </a>
+
+    <!-- Platform navigation links -->
+    <div class="d-flex align-items-center gap-1 mx-auto">
+      <a href="/" class="nav-platform-link {% block nav_active_monitor %}{% endblock %}">
+        <i class="bi bi-satellite-fill me-1"></i>Spacecraft Monitor
+      </a>
+      <a href="/spaceguard/" class="nav-platform-link {% block nav_active_weather %}{% endblock %}">
+        <i class="bi bi-sun me-1"></i>Space Weather
+      </a>
+      <a href="/api/" target="_blank" class="nav-platform-link">
+        <i class="bi bi-lightning me-1"></i>API
+      </a>
+      <a href="/admin/" target="_blank" class="nav-platform-link">
+        <i class="bi bi-gear me-1"></i>Admin
+      </a>
+    </div>
+
     <div class="d-flex align-items-center gap-3">
       {% if mission %}
-        <span class="text-muted small">Mission:</span>
-        <span class="text-white fw-semibold">{{ mission.name }}</span>
+        <span class="text-muted small d-none d-lg-inline">Mission:</span>
+        <span class="text-white fw-semibold small">{{ mission.name }}</span>
         <span class="badge status-badge-{{ mission.status|lower }}">{{ mission.status }}</span>
       {% endif %}
-      <a href="/admin/" class="btn btn-outline-secondary btn-sm">Admin</a>
     </div>
   </div>
 </nav>
 
-<!-- Mission selector sidebar indicator -->
+<!-- Mission selector + platform bar -->
 {% if all_missions %}
 <div class="mission-bar">
   {% for m in all_missions %}
@@ -43,6 +59,13 @@
       <i class="bi bi-satellite-fill me-1"></i>{{ m.spacecraft_name }}
     </a>
   {% endfor %}
+  <span style="width:1px;background:var(--border-color);margin:0 6px;align-self:stretch;display:inline-block"></span>
+  <a href="/spaceguard/" class="mission-pill">
+    <i class="bi bi-sun me-1"></i>Space Weather
+  </a>
+  <a href="/missions/{% if mission %}{{ mission.pk }}/history/{% else %}{% endif %}" class="mission-pill {% if not mission %}d-none{% endif %}">
+    <i class="bi bi-clock-history me-1"></i>History
+  </a>
 </div>
 {% endif %}
 

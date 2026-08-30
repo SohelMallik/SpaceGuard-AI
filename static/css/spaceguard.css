@@ -33,6 +33,31 @@ body {
   padding: 0.5rem 1rem;
 }
 
+/* Platform nav links in navbar */
+.nav-platform-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.nav-platform-link:hover {
+  color: var(--text-primary);
+  background-color: rgba(59, 130, 212, 0.1);
+  border-color: rgba(59, 130, 212, 0.25);
+}
+.nav-platform-link.active {
+  color: var(--accent-blue);
+  background-color: rgba(59, 130, 212, 0.12);
+  border-color: rgba(59, 130, 212, 0.3);
+}
+
 .text-primary-accent { color: var(--accent-blue) !important; }
 .text-accent { color: var(--accent-blue); }
 

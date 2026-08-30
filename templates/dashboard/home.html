@@ -3,37 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpaceGuard AI — No Active Missions</title>
+  <title>SpaceGuard AI — Mission Control</title>
   {% load static %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/spaceguard.css' %}">
 </head>
 <body>
+
+<!-- Navbar -->
 <nav class="navbar navbar-dark navbar-spaceguard">
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center gap-2" href="/">
       <i class="bi bi-satellite fs-4 text-primary-accent"></i>
       <span class="fw-bold">SpaceGuard AI</span>
+      <span class="badge badge-ai ms-1">IBM Granite</span>
     </a>
+    <div class="d-flex align-items-center gap-1 mx-auto">
+      <a href="/" class="nav-platform-link active">
+        <i class="bi bi-satellite-fill me-1"></i>Spacecraft Monitor
+      </a>
+      <a href="/spaceguard/" class="nav-platform-link">
+        <i class="bi bi-sun me-1"></i>Space Weather
+      </a>
+      <a href="/api/" target="_blank" class="nav-platform-link">
+        <i class="bi bi-lightning me-1"></i>API
+      </a>
+      <a href="/admin/" target="_blank" class="nav-platform-link">
+        <i class="bi bi-gear me-1"></i>Admin
+      </a>
+    </div>
+    <div style="width:160px"></div>
   </div>
 </nav>
-<main class="main-content d-flex align-items-center justify-content-center" style="min-height:70vh;">
-  <div class="text-center">
-    <i class="bi bi-satellite fs-1 text-muted mb-3 d-block"></i>
-    <h3 class="text-white mb-2">No Active Missions</h3>
-    <p class="text-muted mb-4">Seed the database to begin mission monitoring.</p>
-    <code class="text-accent d-block mb-3">python manage.py seed_telemetry</code>
-    {% if missions %}
-    <div class="mt-4">
-      <p class="text-muted">All missions:</p>
-      {% for m in missions %}
-        <a href="/missions/{{ m.pk }}/" class="btn btn-outline-secondary btn-sm me-2">{{ m.spacecraft_name }}</a>
-      {% endfor %}
+
+<!-- Content -->
+<main class="main-content">
+  <div class="container-fluid px-4 py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6 text-center">
+
+        <i class="bi bi-satellite fs-1 text-muted mb-3 d-block"></i>
+        <h3 class="text-white mb-2">No Active Missions</h3>
+        <p class="text-muted mb-4">No active mission found. Seed the database to begin spacecraft monitoring.</p>
+        <code class="text-accent d-block mb-4">python manage.py seed_telemetry</code>
+
+        {% if missions %}
+        <div class="mb-4">
+          <p class="text-muted small mb-2">Available missions:</p>
+          {% for m in missions %}
+            <a href="/missions/{{ m.pk }}/" class="btn btn-outline-secondary btn-sm me-2 mb-2">
+              <i class="bi bi-satellite-fill me-1"></i>{{ m.spacecraft_name }}
+            </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Platform links -->
+        <div class="row g-3 mt-2">
+          <div class="col-6 col-md-3">
+            <a href="/spaceguard/" class="d-block p-3 text-center" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='#3b82d4'" onmouseout="this.style.borderColor='var(--border-color)'">
+              <i class="bi bi-sun d-block mb-2" style="font-size:1.4rem;color:#d29922"></i>
+              <div class="text-white small fw-semibold">Space Weather</div>
+              <div class="text-muted" style="font-size:.7rem">Launch Risk AI</div>
+            </a>
+          </div>
+          <div class="col-6 col-md-3">
+            <a href="/api/" target="_blank" class="d-block p-3 text-center" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='#3b82d4'" onmouseout="this.style.borderColor='var(--border-color)'">
+              <i class="bi bi-lightning-charge d-block mb-2" style="font-size:1.4rem;color:#3b82d4"></i>
+              <div class="text-white small fw-semibold">API Explorer</div>
+              <div class="text-muted" style="font-size:.7rem">REST Endpoints</div>
+            </a>
+          </div>
+          <div class="col-6 col-md-3">
+            <a href="/admin/" target="_blank" class="d-block p-3 text-center" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='#3b82d4'" onmouseout="this.style.borderColor='var(--border-color)'">
+              <i class="bi bi-gear d-block mb-2" style="font-size:1.4rem;color:#7d8590"></i>
+              <div class="text-white small fw-semibold">Admin Panel</div>
+              <div class="text-muted" style="font-size:.7rem">Data Management</div>
+            </a>
+          </div>
+          <div class="col-6 col-md-3">
+            <a href="/admin/" target="_blank" class="d-block p-3 text-center" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;text-decoration:none;transition:border-color .15s" onmouseover="this.style.borderColor='#7c5cd8'" onmouseout="this.style.borderColor='var(--border-color)'">
+              <i class="bi bi-database d-block mb-2" style="font-size:1.4rem;color:#7c5cd8"></i>
+              <div class="text-white small fw-semibold">Seed Data</div>
+              <div class="text-muted" style="font-size:.7rem">Add Mission Data</div>
+            </a>
+          </div>
+        </div>
+
+      </div>
     </div>
-    {% endif %}
-    <a href="/admin/" class="btn btn-primary mt-4">Open Admin Panel</a>
   </div>
 </main>
+
+<!-- Footer -->
+<footer class="footer-spaceguard">
+  <div class="container-fluid text-center">
+    <span class="text-muted small">
+      SpaceGuard AI &mdash; AI-Powered Spacecraft Health Monitoring &mdash;
+      Built with <strong>IBM Bob</strong> &amp; <strong>IBM Granite</strong> &mdash;
+      IBM AI Builders Challenge
+    </span>
+  </div>
+</footer>
+
 </body>
 </html>

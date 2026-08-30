@@ -5,6 +5,7 @@ import io
 import logging
 import pandas as pd
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -45,7 +46,7 @@ class MissionTelemetryView(viewsets.ViewSet):
 
     def create(self, request, mission_pk=None):
         """POST /api/missions/{id}/telemetry/ — ingest a single telemetry record."""
-        mission = Mission.objects.get(pk=mission_pk)
+        mission = get_object_or_404(Mission, pk=mission_pk)
         data = request.data.copy()
         data['mission'] = mission.id
 
@@ -71,7 +72,7 @@ class MissionTelemetryView(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='upload', parser_classes=[MultiPartParser])
     def upload(self, request, mission_pk=None):
         """POST /api/missions/{id}/telemetry/upload/ — bulk CSV upload."""
-        mission = Mission.objects.get(pk=mission_pk)
+        mission = get_object_or_404(Mission, pk=mission_pk)
         csv_file = request.FILES.get('file')
         if not csv_file:
             return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
