@@ -232,6 +232,100 @@
   </div>
   {% endif %}
 
+  <!-- ── SPACE WEATHER PANEL ───────────────────────────────────────── -->
+  {% if space_weather %}
+  <div class="row g-2 mb-3">
+    <div class="col-12">
+      <div class="card card-dark p-3
+        {% if space_weather.risk_level == 'EXTREME' %}border-critical
+        {% elif space_weather.risk_level == 'HIGH' %}border-high
+        {% elif space_weather.risk_level == 'MODERATE' %}border-moderate
+        {% endif %}">
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+          <i class="bi bi-sun text-warning fs-5"></i>
+          <span class="card-label mb-0">SPACE WEATHER — {{ space_weather.date }}</span>
+          <span class="badge ms-2
+            {% if space_weather.risk_level == 'EXTREME' %}bg-danger
+            {% elif space_weather.risk_level == 'HIGH' %}bg-orange text-white
+            {% elif space_weather.risk_level == 'MODERATE' %}bg-warning text-dark
+            {% else %}bg-success{% endif %}">
+            {{ space_weather.risk_level }}
+          </span>
+          <span class="ms-1 fw-bold
+            {% if space_weather.recommendation == 'NO-GO' %}text-danger
+            {% elif space_weather.recommendation == 'DELAY' %}text-warning
+            {% elif space_weather.recommendation == 'CAUTION' %}text-warning
+            {% else %}text-success{% endif %}">
+            {% if space_weather.recommendation == 'GO' %}✅{% elif space_weather.recommendation == 'CAUTION' %}⚠{% elif space_weather.recommendation == 'DELAY' %}⏳{% else %}🛑{% endif %}
+            {{ space_weather.recommendation }}
+          </span>
+          <span class="text-muted small ms-auto">{{ space_weather.source }}</span>
+        </div>
+        <div class="row g-2">
+          <div class="col-6 col-md-2">
+            <div class="text-muted x-small">RISK SCORE</div>
+            <div class="fw-bold" style="font-size:1.3rem;color:{% if space_weather.risk_level == 'EXTREME' %}var(--accent-red){% elif space_weather.risk_level == 'HIGH' %}var(--accent-orange){% elif space_weather.risk_level == 'MODERATE' %}var(--accent-yellow){% else %}var(--accent-green){% endif %}">
+              {{ space_weather.risk_score }}<span class="text-muted small">/100</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="text-muted x-small">X-CLASS FLARES (48H)</div>
+            <div class="fw-bold {% if space_weather.xclass_flares_48h > 0 %}text-danger{% else %}text-success{% endif %}">
+              {{ space_weather.xclass_flares_48h }}
+            </div>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="text-muted x-small">M-CLASS FLARES (48H)</div>
+            <div class="fw-bold {% if space_weather.mclass_flares_48h > 1 %}text-warning{% else %}text-white{% endif %}">
+              {{ space_weather.mclass_flares_48h }}
+            </div>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="text-muted x-small">MAX KP-INDEX</div>
+            <div class="fw-bold {% if space_weather.max_kp_index >= 5 %}text-warning{% else %}text-white{% endif %}">
+              {{ space_weather.max_kp_index }}
+            </div>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="text-muted x-small">STORMS (KP≥5)</div>
+            <div class="fw-bold {% if space_weather.storm_count > 0 %}text-warning{% else %}text-white{% endif %}">
+              {{ space_weather.storm_count }}
+            </div>
+          </div>
+          <div class="col-12 col-md-2">
+            <div class="text-muted x-small">AT-RISK SUBSYSTEMS</div>
+            <div>
+              {% for sub in space_weather.at_risk_subsystems %}
+                <span class="badge bg-warning text-dark me-1" style="font-size:.6rem">{{ sub }}</span>
+              {% empty %}
+                <span class="text-success small">None</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% if space_weather.risk_level == 'EXTREME' %}
+        <div class="alert alert-danger py-2 mt-2 mb-0 small">
+          <i class="bi bi-exclamation-octagon-fill me-2"></i>
+          <strong>EXTREME SOLAR STORM:</strong> Switch spacecraft to safe mode immediately.
+          Reduce non-essential power loads. Suspend EVA activities. No launches.
+        </div>
+        {% elif space_weather.risk_level == 'HIGH' %}
+        <div class="alert alert-warning py-2 mt-2 mb-0 small">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>HIGH SOLAR ACTIVITY:</strong> Increase monitoring frequency.
+          Delay non-critical operations. Prepare safe-mode procedures.
+        </div>
+        {% elif space_weather.risk_level == 'MODERATE' %}
+        <div class="alert alert-secondary py-2 mt-2 mb-0 small" style="background:rgba(210,153,34,.1);border-color:var(--accent-yellow)">
+          <i class="bi bi-info-circle-fill me-2 text-warning"></i>
+          <strong>CAUTION:</strong> Mild solar activity. Monitor radiation and signal strength closely.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ── CHARTS + ALERTS + ASSISTANT ───────────────────────────────── -->
   <div class="row g-3">
 
