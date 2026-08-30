@@ -17,6 +17,9 @@ from anomaly.models import AIAnalysis
 from anomaly.serializers import AIAnalysisSerializer
 from alerts.models import Alert
 from alerts.serializers import AlertSerializer
+from ai.space_weather_service import SpaceWeatherService
+
+_weather_service = SpaceWeatherService()
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,20 @@ class MissionViewSet(viewsets.ModelViewSet):
         serializer = AlertSerializer(alerts, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'])
+    def weather(self, request, pk=None):
+        """GET /api/missions/{id}/weather/ — current space weather risk for this mission."""
+        mission = self.get_object()
+        # Use the latest telemetry timestamp's date, or today if no telemetry
+        latest = mission.telemetry_records.order_by('-timestamp').first()
+        query_date = latest.timestamp.date() if latest else None
+        risk = _weather_service.get_risk_for_date(query_date)
+        return Response({
+            'mission': mission.name,
+            'spacecraft': mission.spacecraft_name,
+            'space_weather': risk,
+        })
+
     @action(detail=True, methods=['post'])
     def analyze(self, request, pk=None):
         """POST /api/missions/{id}/analyze/ — run full AI pipeline on latest telemetry."""
@@ -94,6 +111,11 @@ class MissionViewSet(viewsets.ModelViewSet):
                 'source': 'System',
             })
 
+        # Space weather for the telemetry date
+        space_weather = _weather_service.get_risk_for_date(
+            latest_telemetry.timestamp.date()
+        )
+
         context = {
             'mission_name': mission.name,
             'spacecraft': mission.spacecraft_name,
@@ -110,12 +132,13 @@ class MissionViewSet(viewsets.ModelViewSet):
                 'velocity': latest_telemetry.velocity,
                 'power_consumption': latest_telemetry.power_consumption,
                 'is_anomaly': latest_telemetry.is_anomaly,
-                'anomaly_score': latest_telemetry.anomaly_score,
+                'anomaly_score': float(latest_telemetry.anomaly_score) if latest_telemetry.anomaly_score is not None else None,
             },
             'health': latest_analysis.result.get('health', {}) if latest_analysis else {},
             'latest_anomaly': latest_analysis.result.get('anomaly', {}) if latest_analysis else {},
             'latest_explanation': latest_analysis.result.get('explanation', {}) if latest_analysis else {},
             'active_alerts': recent_alerts,
+            'space_weather': space_weather,
         }
 
         from ai.granite_service import GraniteService
@@ -168,6 +191,10 @@ def mission_dashboard(request, pk):
         explanation = latest_analysis.result.get('explanation', {})
         predictions = latest_analysis.result.get('predictions', [])
 
+    # Space weather for this mission's latest telemetry date
+    weather_date = latest_telemetry.timestamp.date() if latest_telemetry else None
+    space_weather = _weather_service.get_risk_for_date(weather_date)
+
     context = {
         'mission': mission,
         'all_missions': all_missions,
@@ -179,6 +206,7 @@ def mission_dashboard(request, pk):
         'active_alerts': active_alerts,
         'chart_data_json': json.dumps(chart_data),
         'alert_count': active_alerts.count(),
+        'space_weather': space_weather,
     }
     return render(request, 'dashboard/index.html', context)
 
