@@ -318,20 +318,7 @@ python SpaceGuard-AI/backend/manage.py runserver
 #    "What should mission operators investigate first?"
 ```
 
----
 
-## Future Improvements
-
-- **WebSocket real-time updates** — Replace polling with Django Channels for live dashboard
-- **PostgreSQL migration** — Switch from SQLite for production scale
-- **Advanced ML models** — LSTM autoencoder for temporal anomaly detection
-- **Multi-mission comparison** — Side-by-side health scoring across missions
-- **User authentication** — Role-based access: operator vs read-only viewer
-- **Alert notifications** — Email/Slack webhook integration
-- **Grafana export** — Time-series data export for external dashboards
-- **Confidence scores** — Uncertainty quantification on Granite explanations
-
----
 
 ## Team Information
 
