@@ -17,7 +17,6 @@
 
 > 🏆 **IBM AI Builders Challenge Submission**
 >
-> Built end-to-end with **IBM Bob** · Powered by **IBM Granite** via **watsonx.ai**
 
 <br/>
 
