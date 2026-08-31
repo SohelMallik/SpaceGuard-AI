@@ -112,7 +112,7 @@ SpaceGuard AI closes that gap by:
 ### 🤖 AI Insight
 > IBM Granite-powered analysis explaining detected anomalies, identifying affected subsystems, and recommending operator actions.
 
-![AI Insight](Screenshots/AI%20Insight.png)
+![AI Insight](https://github.com/SohelMallik/SpaceGuard-AI/blob/37e26c08112990b289347898fd05a4b9e91be1b0/Screenshots/AI%20Insight.png)
 
 ---
 
