@@ -1,0 +1,50 @@
+# --- Python -------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# --- Virtual environments -----------------------------------------------------
+venv/
+env/
+.venv/
+.env/
+
+# --- Environment & secrets ---------------------------------------------------
+.env
+*.env.local
+
+# --- Django -------------------------------------------------------------------
+backend/db.sqlite3
+backend/staticfiles/
+backend/media/
+
+# --- ML model artifacts -------------------------------------------------------
+models/*.pkl
+models/*.joblib
+
+# --- Pytest / test caches -----------------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# --- IDE & OS -----------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+desktop.ini
+.DS_Store
+Thumbs.db
+
+# --- Jupyter notebooks checkpoints -------------------------------------------
+.ipynb_checkpoints/
+
+# --- Logs ---------------------------------------------------------------------
+*.log
