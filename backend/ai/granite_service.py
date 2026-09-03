@@ -29,12 +29,15 @@ HEALTH SCORE:
 TREND PREDICTIONS:
 {predictions_json}
 
+CURRENT SPACE WEATHER CONDITIONS:
+{space_weather_json}
+
 Based on the above data, provide a structured analysis with EXACTLY these sections:
 DETECTED PROBLEM: [describe what is wrong, referencing specific sensor values]
 AFFECTED SUBSYSTEM: [subsystem name]
 SEVERITY: [NORMAL/LOW/MODERATE/HIGH/CRITICAL]
 EVIDENCE: [list the specific telemetry readings that indicate the problem]
-POSSIBLE CAUSE: [most likely technical explanation]
+POSSIBLE CAUSE: [most likely technical explanation, considering space weather if relevant]
 RECOMMENDED ACTION: [specific steps mission operators should take]
 
 Remember: This is decision-support information, NOT autonomous flight commands.
@@ -69,11 +72,16 @@ class GraniteService:
         self.base_url = settings.WATSONX_URL
         self.model_id = settings.WATSONX_MODEL_ID
         self._iam_token = None
+        self._token_expiry = 0  # unix timestamp
 
     def _get_iam_token(self) -> str:
-        """Exchange IBM API key for IAM bearer token."""
+        """Exchange IBM API key for IAM bearer token. Refreshes when within 5 min of expiry."""
+        import time
         if not self.api_key:
             raise ValueError('WATSONX_API_KEY is not configured.')
+        # Refresh if no token or expiry within 5 minutes
+        if self._iam_token and time.time() < self._token_expiry - 300:
+            return self._iam_token
         response = requests.post(
             'https://iam.cloud.ibm.com/identity/token',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
@@ -84,7 +92,9 @@ class GraniteService:
             timeout=30,
         )
         response.raise_for_status()
-        self._iam_token = response.json()['access_token']
+        payload = response.json()
+        self._iam_token = payload['access_token']
+        self._token_expiry = time.time() + payload.get('expires_in', 3600)
         return self._iam_token
 
     def _call_granite(self, prompt: str) -> str:
@@ -157,7 +167,7 @@ class GraniteService:
         result.setdefault('recommended_action', 'Review telemetry data and consult mission protocols.')
         return result
 
-    def _fallback_explanation(self, anomaly_result: dict, health_result: dict) -> dict:
+    def _fallback_explanation(self, anomaly_result: dict, health_result: dict, space_weather: dict = None) -> dict:
         """
         Rule-based explanation used when watsonx API is unavailable.
         Clearly labeled as non-AI output.
@@ -167,13 +177,23 @@ class GraniteService:
         params = anomaly_result.get('suspicious_parameters', [])
         score = health_result.get('health_score', 'N/A')
         params_str = ', '.join(params) if params else 'no specific parameters identified'
+        sw = space_weather or {}
+        weather_note = ''
+        if sw.get('risk_level') in ('HIGH', 'EXTREME'):
+            weather_note = (
+                f' Current space weather is {sw["risk_level"]} '
+                f'(score {sw.get("risk_score", "?")}/100, recommendation: {sw.get("recommendation", "?")}). '
+                'Solar activity may be contributing to this anomaly.'
+            )
 
         return {
-            'detected_problem': f'Anomaly detected with severity {severity}.',
+            'detected_problem': f'Anomaly detected with severity {severity} in {subsystem} subsystem.{weather_note}',
             'affected_subsystem': subsystem,
             'severity': severity,
             'evidence': f'Suspicious parameters: {params_str}. Health score: {score}/100.',
-            'possible_cause': 'Subsystem degradation detected by anomaly detection model.',
+            'possible_cause': (
+                f'Subsystem degradation detected by anomaly detection model.{weather_note}'
+            ),
             'recommended_action': (
                 'Review the identified parameters and consult mission protocols for '
                 f'{subsystem.lower()} subsystem anomaly procedures.'
@@ -187,6 +207,7 @@ class GraniteService:
         anomaly_result: dict,
         health_result: dict,
         predictions: list,
+        space_weather: dict = None,
     ) -> dict:
         """
         Generate structured AI explanation for an anomaly.
@@ -194,15 +215,16 @@ class GraniteService:
         """
         if not self.api_key or not self.project_id:
             logger.warning('watsonx credentials not configured — using fallback explanation.')
-            fallback = self._fallback_explanation(anomaly_result, health_result)
+            fallback = self._fallback_explanation(anomaly_result, health_result, space_weather or {})
             fallback['generated_by'] = 'Rule-Based Fallback (credentials not configured)'
             return fallback
 
         prompt = EXPLANATION_PROMPT_TEMPLATE.format(
             telemetry_json=json.dumps(telemetry_data, indent=2, default=str),
-            anomaly_json=json.dumps(anomaly_result, indent=2),
-            health_json=json.dumps(health_result, indent=2),
-            predictions_json=json.dumps(predictions, indent=2),
+            anomaly_json=json.dumps(anomaly_result, indent=2, default=str),
+            health_json=json.dumps(health_result, indent=2, default=str),
+            predictions_json=json.dumps(predictions, indent=2, default=str),
+            space_weather_json=json.dumps(space_weather or {}, indent=2, default=str),
         )
 
         try:
@@ -213,7 +235,7 @@ class GraniteService:
             return parsed
         except Exception as exc:
             logger.error('Granite API call failed: %s', exc)
-            fallback = self._fallback_explanation(anomaly_result, health_result)
+            fallback = self._fallback_explanation(anomaly_result, health_result, space_weather or {})
             fallback['generated_by'] = f'Rule-Based Fallback (API error: {type(exc).__name__})'
             return fallback
 
@@ -258,6 +280,7 @@ def _local_ai_agent(context: dict, question: str) -> dict:
     spacecraft = context.get('spacecraft', 'the spacecraft')
     mission = context.get('mission_name', 'this mission')
     status = context.get('mission_status', 'ACTIVE')
+    sw = context.get('space_weather', {})
 
     # Helper: format a sensor value cleanly
     def val(key, unit='', decimals=1):
@@ -450,6 +473,47 @@ def _local_ai_agent(context: dict, question: str) -> dict:
             answer += f"\n⚠ Pressure {round(float(p),1)} kPa is outside the normal range."
         else:
             answer += "\n✓ Pressure is within nominal operating range."
+        return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
+
+    # ── Space weather queries ─────────────────────────────────────────────
+    if any(w in q for w in ['space weather', 'solar', 'flare', 'geomagnetic', 'radiation risk',
+                              'kp index', 'kp-index', 'weather', 'launch risk', 'storm']):
+        if not sw:
+            return {'answer': 'Space weather data is not currently available.', 'source': 'SpaceGuard AI (Local Agent)'}
+        risk_score = sw.get('risk_score', 0)
+        risk_level = sw.get('risk_level', 'LOW')
+        recommendation = sw.get('recommendation', 'GO')
+        xclass = sw.get('xclass_flares_48h', 0)
+        mclass = sw.get('mclass_flares_48h', 0)
+        kp = sw.get('max_kp_index', 0)
+        storms = sw.get('storm_count', 0)
+        at_risk = sw.get('at_risk_subsystems', [])
+        date_str = sw.get('date', 'N/A')
+
+        rec_emoji = {'GO': '✅', 'CAUTION': '⚠', 'DELAY': '⏳', 'NO-GO': '🛑'}.get(recommendation, '❓')
+        answer = (
+            f"**Space Weather Report — {spacecraft}**\n\n"
+            f"• Date: {date_str}\n"
+            f"• Risk Score: **{risk_score}/100**\n"
+            f"• Risk Level: **{risk_level}**\n"
+            f"• Launch Recommendation: {rec_emoji} **{recommendation}**\n\n"
+            f"**Solar Activity (48h):**\n"
+            f"• X-class Flares: {xclass}\n"
+            f"• M-class Flares: {mclass}\n"
+            f"• Max Kp-Index: {kp}\n"
+            f"• Significant Storms (Kp≥5): {storms}\n"
+        )
+        if at_risk:
+            answer += f"\n⚠ **At-risk subsystems:** {', '.join(at_risk)}\n"
+            answer += f"Monitor these sensors closely during elevated space weather conditions.\n"
+        if risk_level == 'LOW':
+            answer += "\n✓ Space weather conditions are quiet. Nominal operations may proceed."
+        elif risk_level == 'MODERATE':
+            answer += "\n⚠ Mild solar activity. Increase telemetry polling frequency and monitor radiation."
+        elif risk_level == 'HIGH':
+            answer += "\n⏳ Active solar conditions. Delay non-critical operations. Prepare safe-mode procedures."
+        else:
+            answer += "\n🛑 EXTREME solar storm. Switch to safe mode immediately. No launches."
         return {'answer': answer, 'source': 'SpaceGuard AI (Local Agent)'}
 
     # ── Alert queries ─────────────────────────────────────────────────────
