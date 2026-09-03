@@ -56,17 +56,23 @@ function appendMessage(container, text, role, source) {
     : '';
   const div = document.createElement('div');
   div.className = `chat-msg ${role}`;
-  div.innerHTML = prefix + escapeHtml(text);
+  div.innerHTML = prefix + formatText(text);
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
 
-function escapeHtml(text) {
-  return text
+function formatText(text) {
+  // Escape HTML entities first
+  let s = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+  // Convert **bold** markers to <strong>
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Convert newlines to <br>
+  s = s.replace(/\n/g, '<br>');
+  return s;
 }
 
 // Allow Enter key to send message

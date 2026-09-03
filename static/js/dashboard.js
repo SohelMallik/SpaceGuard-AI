@@ -147,7 +147,6 @@ setInterval(() => {
     fetch(`/api/missions/${missionId}/health/`)
       .then(r => r.json())
       .then(data => {
-        // Silently update — full refresh only when needed
         console.log('Health check:', data.health_score, data.risk_level);
       })
       .catch(() => {});
