@@ -1,0 +1,26 @@
+Model Evaluation Report
+=========================
+
+Test Accuracy: 0.9500
+
+Classification Report:
+              precision    recall  f1-score   support
+
+        HIGH       1.00      1.00      1.00         9
+         LOW       0.91      1.00      0.95        10
+    MODERATE       0.00      0.00      0.00         1
+
+    accuracy                           0.95        20
+   macro avg       0.64      0.67      0.65        20
+weighted avg       0.90      0.95      0.93        20
+
+
+Feature Importances:
+              feature  importance
+0  xclass_flare_count    0.276556
+1  mclass_flare_count    0.271217
+4        avg_kp_index    0.237628
+3        max_kp_index    0.096752
+5         storm_count    0.060523
+6         event_trend    0.057324
+2  cclass_flare_count    0.000000

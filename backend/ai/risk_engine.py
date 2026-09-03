@@ -83,22 +83,25 @@ class RiskEngine:
         }
 
     def _compute_trend_deduction(self, recent_records) -> int:
-        """Assign up to 10 penalty points if critical parameters are trending toward limits."""
+        """Assign up to 10 penalty points if critical parameters are trending TOWARD their danger limits."""
         import numpy as np
         penalty = 0
-        critical_params = ['temperature', 'battery_voltage', 'signal_strength']
-        for param in critical_params:
+        # (param, dangerous direction): rising temp is bad, falling battery/signal is bad
+        critical_params = [
+            ('temperature',    'rising'),
+            ('battery_voltage', 'falling'),
+            ('signal_strength', 'falling'),
+        ]
+        for param, danger_dir in critical_params:
             values = [getattr(r, param) for r in recent_records if hasattr(r, param)]
             if len(values) < 3:
                 continue
             x = np.arange(len(values))
             slope = float(np.polyfit(x, values, 1)[0])
-            limits = THRESHOLDS.get(param, {})
-            moving_toward_limit = (
-                (slope > 0 and 'max' in limits) or
-                (slope < 0 and 'min' in limits)
-            )
-            if moving_toward_limit and abs(slope) > 0.1:
+            # Only penalise when trending in the dangerous direction with meaningful slope
+            if danger_dir == 'rising' and slope > 0.05:
+                penalty += 3
+            elif danger_dir == 'falling' and slope < -0.05:
                 penalty += 3
         return min(penalty, 10)
 
