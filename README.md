@@ -61,7 +61,7 @@ Spacecraft generate large volumes of telemetry (temperature, battery voltage, fu
 
 | Launch Analyzer | AI Insight | Risk History |
 |-----------------|-----------|--------------|
-| ![Launch Analyzer](Screenshots/launch-analyzer.png) | ![AI Insight](Screenshots/ai-insight.png) | ![Risk History](Screenshots/risk-history.png) |
+| ![Launch Analyzer](https://github.com/SohelMallik/SpaceGuard-AI/blob/78d0ce75af27a8281293c2dae7584a264a8f1de5/Screenshots/Launch%20Analyzer.png) | ![AI Insight](https://github.com/SohelMallik/SpaceGuard-AI/blob/78d0ce75af27a8281293c2dae7584a264a8f1de5/Screenshots/AI%20Insight.png) | ![Risk History](https://github.com/SohelMallik/SpaceGuard-AI/blob/78d0ce75af27a8281293c2dae7584a264a8f1de5/Screenshots/Risk%20History.png) |
 
 ### 🧠 Model Performance
 
