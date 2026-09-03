@@ -284,7 +284,6 @@ WATSONX_URL=https://us-south.ml.cloud.ibm.com
 WATSONX_MODEL_ID=ibm/granite-13b-instruct-v2
 ```
 
-> ⚠️ **Never commit `.env` to version control.** It is already listed in `.gitignore`.
 
 ---
 
