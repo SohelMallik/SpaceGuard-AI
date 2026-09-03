@@ -67,7 +67,7 @@ Spacecraft generate large volumes of telemetry (temperature, battery voltage, fu
 
 | Model Performance |
 |---|
-| ![Model Performance](Screenshots/model-performance.png) |
+| ![Model Performance](https://github.com/SohelMallik/SpaceGuard-AI/blob/a4221940a38f0943270b3f26f7d2cfb898b8c3e0/Screenshots/Model%20Performance.png) |
 
 ---
 
