@@ -55,7 +55,7 @@ Spacecraft generate large volumes of telemetry (temperature, battery voltage, fu
 
 | Spacecraft Monitor | Space Weather | Mission Overview |
 |--------------------|---------------|------------------|
-| ![Spacecraft Monitor](https://github.com/SohelMallik/SpaceGuard-AI/blob/1c6d756426e99c181a60acd8045cd179c585d303/Screenshots/Spacecraft%20Monitor.png) | ![Space Weather](Screenshots/space-weather.png) | ![Mission Overview](Screenshots/mission-overview.png) |
+| ![Spacecraft Monitor](https://github.com/SohelMallik/SpaceGuard-AI/blob/1c6d756426e99c181a60acd8045cd179c585d303/Screenshots/Spacecraft%20Monitor.png) | ![Space Weather](https://github.com/SohelMallik/SpaceGuard-AI/blob/53e1924bba10471902f67bc150e8f29e13d5b947/Screenshots/Space%20Weather.png) | ![Mission Overview](https://github.com/SohelMallik/SpaceGuard-AI/blob/53e1924bba10471902f67bc150e8f29e13d5b947/Screenshots/Mission%20Overview.png) |
 
 ### 🚀 Launch Analyzer · 🤖 AI Insight · 📊 Risk History
 
