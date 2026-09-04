@@ -11,8 +11,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Paths are relative to the monorepo root (two levels above backend/)
-_MODEL_PKL = Path(__file__).resolve().parents[3] / 'space-weather-predictor' / 'models' / 'launch_decision_model.pkl'
-_DATA_PKL  = Path(__file__).resolve().parents[3] / 'space-weather-predictor' / 'models' / 'space_weather_data.pkl'
+_MODEL_PKL = Path(__file__).resolve().parents[3] / 'models' / 'launch_decision_model.pkl'
+_DATA_PKL  = Path(__file__).resolve().parents[3] / 'models' / 'space_weather_data.pkl'
 
 RECOMMENDATION_MAP = {
     'LOW':      'GO',
