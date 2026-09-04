@@ -405,27 +405,44 @@
       </div>
 
       <!-- AI Mission Assistant -->
-      <div class="card card-dark p-3">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-chat-dots text-primary-accent"></i>
-          <div class="card-label mb-0">AI MISSION ASSISTANT</div>
-        </div>
-        <div id="chatHistory" class="chat-history mb-2">
-          <div class="chat-msg assistant">
-            <strong>SpaceGuard AI</strong><br>
-            Hello, Mission Operator. I'm your AI Mission Assistant powered by IBM Granite.
-            Ask me about spacecraft health, anomalies, or subsystem status.
+      <div class="card card-dark p-0 assistant-card">
+        <!-- Header -->
+        <div class="assistant-header px-3 pt-3 pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="assistant-avatar"><i class="bi bi-cpu-fill"></i></div>
+            <div>
+              <div class="card-label mb-0">AI MISSION ASSISTANT</div>
+              <div class="text-muted" style="font-size:.65rem">Problem · Why · How to Fix — grounded in live telemetry</div>
+            </div>
+            <span class="badge badge-ai ms-auto">IBM Granite</span>
           </div>
         </div>
-        <div class="input-group input-group-sm">
-          <input type="text" id="chatInput" class="form-control chat-input"
-            placeholder="Ask about mission status..." maxlength="500">
-          <button class="btn btn-primary" onclick="sendMessage({{ mission.pk }})">
-            <i class="bi bi-send-fill"></i>
-          </button>
+
+        <!-- Suggestion chips -->
+        <div id="chatSuggestions" class="chat-chips px-3 pb-2"></div>
+
+        <!-- Chat history -->
+        <div id="chatHistory" class="chat-history px-3">
+          <div class="chat-msg assistant">
+            <div class="chat-msg-header"><span class="chat-source">SpaceGuard AI</span></div>
+            <div class="chat-msg-body">
+              Hello, Mission Operator. I'm your <strong>AI Mission Assistant</strong>.<br><br>
+              I give structured <strong>Problem → Why it happened → How to fix it</strong> answers,
+              using only live telemetry data.<br><br>
+              Click a quick prompt above or type your question below.
+            </div>
+          </div>
         </div>
-        <div class="text-muted x-small mt-1">
-          <i class="bi bi-info-circle me-1"></i>AI uses only real telemetry data — no invented values.
+
+        <!-- Input -->
+        <div class="assistant-input px-3 pb-3 pt-2">
+          <div class="input-group input-group-sm">
+            <input type="text" id="chatInput" class="form-control chat-input"
+              placeholder="e.g. What is wrong? Why is temperature high? How do I fix the battery?" maxlength="500">
+            <button class="btn btn-primary" onclick="sendMessage({{ mission.pk }})">
+              <i class="bi bi-send-fill"></i>
+            </button>
+          </div>
         </div>
       </div>
 
