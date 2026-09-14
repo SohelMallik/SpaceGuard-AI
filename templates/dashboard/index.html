@@ -25,12 +25,7 @@
         </div>
         {% endwith %}
         <div class="mt-2">
-          <span class="badge
-            {% if health.risk_level == 'NORMAL' %}bg-success
-            {% elif health.risk_level == 'LOW' %}bg-info text-dark
-            {% elif health.risk_level == 'MODERATE' %}bg-warning text-dark
-            {% elif health.risk_level == 'HIGH' %}bg-orange text-white
-            {% else %}bg-danger{% endif %} fs-6 px-3 py-2">
+          <span class="badge status-badge-{{ health.risk_level|lower|default:'unknown' }} fs-6 px-3 py-2">
             {{ health.risk_level|default:"NO DATA" }}
           </span>
         </div>
@@ -38,6 +33,7 @@
         <div class="text-muted small mt-2">
           <i class="bi bi-building me-1"></i>{{ mission.spacecraft_name }}
         </div>
+        <div class="text-muted mt-2" style="font-size:.6rem" id="lastRefreshed">Live · 30s refresh</div>
       </div>
     </div>
 
@@ -113,13 +109,16 @@
             No analysis yet. Click <strong>Run Analysis</strong> or POST to <code>/api/missions/{{ mission.pk }}/analyze/</code>
           </div>
         {% endif %}
-        <div class="mt-auto pt-2 d-flex gap-2">
-          <button class="btn btn-sm btn-primary" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
-            <i class="bi bi-play-fill me-1"></i>Run Analysis
-          </button>
-          <a href="/missions/{{ mission.pk }}/history/" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-clock-history me-1"></i>History
-          </a>
+        <div class="mt-auto pt-2 d-flex flex-column gap-2">
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" id="runAnalysisBtn" onclick="runAnalysis({{ mission.pk }})">
+              <i class="bi bi-play-fill me-1"></i>Run Analysis
+            </button>
+            <a href="/missions/{{ mission.pk }}/history/" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-clock-history me-1"></i>History
+            </a>
+          </div>
+          <div id="analysisError" class="text-danger small d-none"></div>
         </div>
       </div>
     </div>
