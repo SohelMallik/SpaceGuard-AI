@@ -217,6 +217,7 @@ def history_view(request, pk):
     all_records = list(mission.telemetry_records.order_by('-timestamp')[:200])
     all_records.reverse()
     all_alerts = mission.alerts.all()
+    all_missions = Mission.objects.all()
 
     chart_data = {
         'labels': [r.timestamp.strftime('%Y-%m-%d %H:%M') for r in all_records],
@@ -229,13 +230,14 @@ def history_view(request, pk):
         'velocity': [r.velocity for r in all_records],
         'power_consumption': [r.power_consumption for r in all_records],
         'health_score': [
-            r.anomaly_score * -100 + 100 if r.anomaly_score else 100
+            round(float(r.anomaly_score) * -100 + 100, 1) if r.anomaly_score is not None else 100
             for r in all_records
         ],
     }
 
     return render(request, 'analytics/history.html', {
         'mission': mission,
+        'all_missions': all_missions,
         'all_alerts': all_alerts,
         'chart_data_json': json.dumps(chart_data),
         'telemetry_count': len(all_records),
