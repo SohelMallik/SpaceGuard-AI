@@ -48,31 +48,47 @@ function makeDataset(data, color, label) {
  * Initialize all dashboard charts.
  * @param {object} d - chart data object from Django context
  */
+/**
+ * Build Chart.js options with a title plugin safely merged in.
+ */
+function chartOptions(titleText) {
+  return {
+    responsive: true,
+    animation: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: CHART_DEFAULTS.plugins.tooltip,
+      title: { display: true, text: titleText, color: '#7d8590', font: { size: 11 } },
+    },
+    scales: CHART_DEFAULTS.scales,
+  };
+}
+
 function initCharts(d) {
   if (!d || !d.labels) return;
 
   new Chart(document.getElementById('tempChart'), {
     type: 'line',
     data: { labels: d.labels, datasets: [makeDataset(d.temperature, '#f85149', 'Temperature (°C)')] },
-    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, title: { display: true, text: 'Temperature (°C)', color: '#7d8590', font: { size: 11 } } } },
+    options: chartOptions('Temperature (°C)'),
   });
 
   new Chart(document.getElementById('voltChart'), {
     type: 'line',
     data: { labels: d.labels, datasets: [makeDataset(d.battery_voltage, '#3b82d4', 'Battery Voltage (V)')] },
-    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, title: { display: true, text: 'Battery Voltage (V)', color: '#7d8590', font: { size: 11 } } } },
+    options: chartOptions('Battery Voltage (V)'),
   });
 
   new Chart(document.getElementById('fuelChart'), {
     type: 'line',
     data: { labels: d.labels, datasets: [makeDataset(d.fuel_level, '#3fb950', 'Fuel Level (%)')] },
-    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, title: { display: true, text: 'Fuel Level (%)', color: '#7d8590', font: { size: 11 } } } },
+    options: chartOptions('Fuel Level (%)'),
   });
 
   new Chart(document.getElementById('signalChart'), {
     type: 'line',
     data: { labels: d.labels, datasets: [makeDataset(d.signal_strength, '#7c5cd8', 'Signal Strength (dBm)')] },
-    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, title: { display: true, text: 'Signal Strength (dBm)', color: '#7d8590', font: { size: 11 } } } },
+    options: chartOptions('Signal Strength (dBm)'),
   });
 }
 
@@ -105,21 +121,38 @@ function initHistoryCharts(d) {
  */
 function runAnalysis(missionId) {
   const btn = document.getElementById('runAnalysisBtn');
-  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+    btn.dataset.originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Analyzing…';
+  }
 
   fetch(`/api/missions/${missionId}/analyze/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
   })
-  .then(r => r.json())
-  .then(data => {
-    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+  .then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(() => {
     window.location.reload();
   })
   .catch(err => {
     console.error('Analysis failed:', err);
-    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
-    alert('Analysis request failed. Check the console for details.');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+      btn.innerHTML = btn.dataset.originalText || '<i class="bi bi-play-fill me-1"></i>Run Analysis';
+    }
+    // Show inline error instead of blocking alert()
+    const errEl = document.getElementById('analysisError');
+    if (errEl) {
+      errEl.textContent = `Analysis failed: ${err.message}. Check console for details.`;
+      errEl.classList.remove('d-none');
+      setTimeout(() => errEl.classList.add('d-none'), 6000);
+    }
   });
 }
 
@@ -143,12 +176,27 @@ function getCookie(name) {
 // Auto-refresh health indicator every 30 seconds
 setInterval(() => {
   const missionId = typeof MISSION_ID !== 'undefined' ? MISSION_ID : null;
-  if (missionId) {
-    fetch(`/api/missions/${missionId}/health/`)
-      .then(r => r.json())
-      .then(data => {
-        console.log('Health check:', data.health_score, data.risk_level);
-      })
-      .catch(() => {});
-  }
+  if (!missionId) return;
+
+  fetch(`/api/missions/${missionId}/health/`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.health_score) return;
+
+      // Update health score number
+      const scoreEl = document.querySelector('.health-score-num');
+      if (scoreEl) scoreEl.textContent = data.health_score;
+
+      // Update risk badge
+      const riskBadge = document.querySelector('.badge[class*="status-badge"]');
+      if (riskBadge) riskBadge.textContent = data.risk_level || '';
+
+      // Update last-refreshed indicator
+      const tsEl = document.getElementById('lastRefreshed');
+      if (tsEl) {
+        const now = new Date();
+        tsEl.textContent = `Refreshed ${now.toLocaleTimeString()}`;
+      }
+    })
+    .catch(() => {});
 }, 30000);
