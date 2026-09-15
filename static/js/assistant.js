@@ -162,10 +162,7 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function getCookie(name) {
-  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
-  return v ? v[2] : null;
-}
+// getCookie is provided by dashboard.js — no duplicate needed here.
 
 // ── Keyboard shortcut: Enter to send ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -178,6 +175,15 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if (missionId) sendMessage(missionId);
       }
+    });
+  }
+
+  // Send button visual feedback on click
+  const sendBtn = input ? input.closest('.input-group')?.querySelector('button') : null;
+  if (sendBtn) {
+    sendBtn.addEventListener('click', () => {
+      sendBtn.classList.add('btn-sending');
+      setTimeout(() => sendBtn.classList.remove('btn-sending'), 600);
     });
   }
 
