@@ -2,7 +2,7 @@ import sys, os, django
 sys.path.insert(0, 'SpaceGuard-AI/backend')
 os.environ['DJANGO_SETTINGS_MODULE'] = 'spaceguard.settings'
 django.setup()
-
+# Import necessary models and functions
 from missions.models import Mission
 from ai.pipeline import run_analysis_pipeline
 
