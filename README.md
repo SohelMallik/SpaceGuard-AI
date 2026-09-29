@@ -376,7 +376,7 @@ The test suite covers models, REST API, anomaly detection, health scoring, alert
 
 ```bash
 cd SpaceGuard-AI/backend
-python manage.py test tests --verbosity=
+python manage.py test tests --verbosity=2
 ```
 
 ### Test Coverage
