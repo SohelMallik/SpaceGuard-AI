@@ -486,7 +486,8 @@
 <script src="{% static 'js/dashboard.js' %}"></script>
 <script src="{% static 'js/assistant.js' %}"></script>
 <script>
-const CHART_DATA = {{ chart_data_json|safe }};
+{{ chart_data_json|json_script:"chart-data-json" }}
+const CHART_DATA = JSON.parse(document.getElementById('chart-data-json').textContent);
 const MISSION_ID = {{ mission.pk }};
 initCharts(CHART_DATA);
 </script>
