@@ -187,9 +187,14 @@ setInterval(() => {
       const scoreEl = document.querySelector('.health-score-num');
       if (scoreEl) scoreEl.textContent = data.health_score;
 
-      // Update risk badge
+      // Update risk badge — update both text and CSS class
       const riskBadge = document.querySelector('.badge[class*="status-badge"]');
-      if (riskBadge) riskBadge.textContent = data.risk_level || '';
+      if (riskBadge && data.risk_level) {
+        riskBadge.textContent = data.risk_level;
+        // Remove all existing status-badge-* classes and apply the correct one
+        riskBadge.className = riskBadge.className.replace(/status-badge-\S+/g, '').trim();
+        riskBadge.classList.add('badge', 'status-badge-' + data.risk_level.toLowerCase());
+      }
 
       // Update last-refreshed indicator
       const tsEl = document.getElementById('lastRefreshed');
