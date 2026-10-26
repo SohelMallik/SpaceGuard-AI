@@ -1,5 +1,5 @@
 import sys, os, django
-sys.path.insert(0, 'SpaceGuard-AI/backend')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend'))
 os.environ['DJANGO_SETTINGS_MODULE'] = 'spaceguard.settings'
 django.setup()
 # Import necessary models and functions

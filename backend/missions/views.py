@@ -98,6 +98,11 @@ class MissionViewSet(viewsets.ModelViewSet):
                 {'detail': 'A question is required.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if len(question) > 500:
+            return Response(
+                {'detail': 'Question must be 500 characters or fewer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         # Build context from database — no invented values
         latest_telemetry = mission.telemetry_records.order_by('-timestamp').first()
         latest_analysis = mission.ai_analyses.order_by('-created_at').first()
@@ -141,8 +146,7 @@ class MissionViewSet(viewsets.ModelViewSet):
             'space_weather': space_weather,
         }
 
-        from ai.granite_service import GraniteService
-        granite = GraniteService()
+        from ai.pipeline import _granite as granite
         result = granite.ask_assistant(context, question)
         return Response(result)
 
