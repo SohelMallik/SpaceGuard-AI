@@ -13,11 +13,55 @@ from ai.space_weather_service import SpaceWeatherService
 
 logger = logging.getLogger(__name__)
 
-_detector = AnomalyDetector()
-_risk_engine = RiskEngine()
-_predictor = TrendPredictor()
-_granite = GraniteService()
-_weather = SpaceWeatherService()
+# Module-level singletons are initialized lazily so that importing this module
+# never loads ML models or reads credentials at startup (important for tests,
+# migrations and cold starts).
+
+_detector = None
+_risk_engine = None
+_predictor = None
+_granite = None
+_weather = None
+
+
+def get_detector() -> AnomalyDetector:
+    """Lazily initialized AnomalyDetector singleton."""
+    global _detector
+    if _detector is None:
+        _detector = AnomalyDetector()
+    return _detector
+
+
+def get_risk_engine() -> RiskEngine:
+    """Lazily initialized RiskEngine singleton."""
+    global _risk_engine
+    if _risk_engine is None:
+        _risk_engine = RiskEngine()
+    return _risk_engine
+
+
+def get_predictor() -> TrendPredictor:
+    """Lazily initialized TrendPredictor singleton."""
+    global _predictor
+    if _predictor is None:
+        _predictor = TrendPredictor()
+    return _predictor
+
+
+def get_granite() -> GraniteService:
+    """Lazily initialized GraniteService singleton (shared across all callers)."""
+    global _granite
+    if _granite is None:
+        _granite = GraniteService()
+    return _granite
+
+
+def get_weather_service() -> SpaceWeatherService:
+    """Lazily initialized SpaceWeatherService singleton."""
+    global _weather
+    if _weather is None:
+        _weather = SpaceWeatherService()
+    return _weather
 
 
 def _to_native(obj):
@@ -50,7 +94,7 @@ def run_analysis_pipeline(telemetry_record) -> dict:
     mission = telemetry_record.mission
 
     # 1. Anomaly detection
-    anomaly_result = _to_native(_detector.analyze(telemetry_record))
+    anomaly_result = _to_native(get_detector().analyze(telemetry_record))
 
     # 2. Save anomaly fields back to the telemetry record
     telemetry_record.anomaly_score = anomaly_result['anomaly_score']
@@ -60,15 +104,15 @@ def run_analysis_pipeline(telemetry_record) -> dict:
     # 3. Health score computation (use last 10 records for trend penalty)
     recent = list(mission.telemetry_records.order_by('-timestamp')[:10])
     health_result = _to_native(
-        _risk_engine.compute_health(telemetry_record, anomaly_result, recent_records=recent)
+        get_risk_engine().compute_health(telemetry_record, anomaly_result, recent_records=recent)
     )
 
     # 4. Trend predictions
-    predictions = _to_native(_predictor.predict_all(mission))
+    predictions = _to_native(get_predictor().predict_all(mission))
 
     # 5. Space weather risk for the telemetry timestamp
     record_date = telemetry_record.timestamp.date() if telemetry_record.timestamp else None
-    space_weather = _to_native(_weather.get_risk_for_date(record_date))
+    space_weather = _to_native(get_weather_service().get_risk_for_date(record_date))
 
     # Escalate anomaly severity if space weather is HIGH/EXTREME and sensor radiation is elevated
     if (
@@ -99,7 +143,7 @@ def run_analysis_pipeline(telemetry_record) -> dict:
 
     # 7. IBM Granite explanation (only for non-NORMAL severity)
     if anomaly_result['severity'] != 'NORMAL':
-        explanation = _granite.explain_anomaly(
+        explanation = get_granite().explain_anomaly(
             telemetry_data, anomaly_result, health_result, predictions, space_weather
         )
     else:
