@@ -229,11 +229,22 @@ def history_view(request, pk):
         'pressure': [r.pressure for r in all_records],
         'velocity': [r.velocity for r in all_records],
         'power_consumption': [r.power_consumption for r in all_records],
-        'health_score': [
-            round(float(r.anomaly_score) * -100 + 100, 1) if r.anomaly_score is not None else 100
-            for r in all_records
-        ],
+        'health_score': [],  # Will be populated from AIAnalysis records below
     }
+
+    # Build health_score from AIAnalysis records keyed by telemetry_id
+    telemetry_ids = [r.id for r in all_records]
+    analyses = AIAnalysis.objects.filter(
+        telemetry_id__in=telemetry_ids
+    ).values('telemetry_id', 'result')
+    analysis_map = {}
+    for a in analyses:
+        # Keep the latest analysis per telemetry record
+        analysis_map[a['telemetry_id']] = a['result']
+    chart_data['health_score'] = [
+        analysis_map.get(r.id, {}).get('health', {}).get('health_score', 100)
+        for r in all_records
+    ]
 
     return render(request, 'analytics/history.html', {
         'mission': mission,
