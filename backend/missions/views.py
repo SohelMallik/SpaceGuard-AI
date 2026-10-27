@@ -30,6 +30,10 @@ class MissionViewSet(viewsets.ModelViewSet):
     """
     queryset = Mission.objects.all()
     serializer_class = MissionSerializer
+    # AI actions (analyze / assistant) are throttled at '10/min' per client —
+    # see spaceguard.throttling.ActionScopedRateThrottle
+    throttle_scope_analyze = 'ai'
+    throttle_scope_assistant = 'ai'
 
     @action(detail=True, methods=['get'])
     def health(self, request, pk=None):
@@ -85,7 +89,14 @@ class MissionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         from ai.pipeline import run_analysis_pipeline
-        result = run_analysis_pipeline(latest_telemetry)
+        try:
+            result = run_analysis_pipeline(latest_telemetry)
+        except Exception as exc:
+            logger.exception('Analysis pipeline failed for mission %d: %s', mission.pk, exc)
+            return Response(
+                {'detail': 'AI analysis pipeline failed. Check server logs for details.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response(result)
 
     @action(detail=True, methods=['post'])
@@ -146,8 +157,8 @@ class MissionViewSet(viewsets.ModelViewSet):
             'space_weather': space_weather,
         }
 
-        from ai.pipeline import _granite as granite
-        result = granite.ask_assistant(context, question)
+        from ai.pipeline import get_granite
+        result = get_granite().ask_assistant(context, question)
         return Response(result)
 
 
