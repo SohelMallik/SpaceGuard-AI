@@ -6,11 +6,14 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from spaceguard.health import health_check
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('missions.urls')),
     path('api/', include('telemetry.urls')),
     path('api/', include('alerts.urls')),
+    path('api/health/', health_check, name='health-check'),
     path('', include('missions.dashboard_urls')),
 ]
 
