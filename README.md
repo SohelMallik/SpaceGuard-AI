@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛰️ SpaceGuard AI
+#  SpaceGuard AI
 
 ### AI-Powered Spacecraft Health Monitoring & Mission Decision-Support System
 
