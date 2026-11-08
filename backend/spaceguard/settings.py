@@ -175,22 +175,37 @@ MEDIA_ROOT = BASE_DIR / 'media'  # Folder where uploads are stored
 # old 32-bit int — avoids running out of IDs on busy tables).
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django REST Framework
+# ---------------------------------------------------------------------------
+# Django REST Framework (the JSON API)
+# ---------------------------------------------------------------------------
+# Two feature switches read from the environment:
+#   API_RATE_LIMIT_ENABLED — turn API throttling (rate limiting) on/off.
+#   API_AUTH_REQUIRED      — force login on every API endpoint (production mode).
 API_RATE_LIMIT_ENABLED = os.environ.get('API_RATE_LIMIT_ENABLED', 'True') == 'True'
 API_AUTH_REQUIRED = os.environ.get('API_AUTH_REQUIRED', 'False') == 'True'
 
 REST_FRAMEWORK = {
+    # Pagination: list endpoints are split into pages instead of returning
+    # every row at once. ?page=2 selects the page; PAGE_SIZE limits each
+    # page to 50 items.
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    # Renderers: how responses are formatted. JSON is the default; the
+    # BrowsableAPIRenderer also gives human visitors an HTML view of the API.
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    # Parsers: request body formats the API can accept (JSON, file uploads
+    # via multipart, and classic HTML form data).
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
     ],
+    # Custom error handler: every API error is returned as structured JSON
+    # like {"error": true, "status_code": ..., "detail": ...} — see
+    # spaceguard/exceptions.py.
     'EXCEPTION_HANDLER': 'spaceguard.exceptions.custom_exception_handler',
     # Authentication: browser requests (dashboard) use the Django session;
     # external clients can authenticate with HTTP Basic (user/password).
@@ -204,9 +219,15 @@ REST_FRAMEWORK = {
         else 'rest_framework.permissions.AllowAny',
     ],
     # Throttling for expensive AI endpoints (analyze / assistant)
+    # The custom throttle class allows per-action scopes: each ViewSet action
+    # can declare which throttle bucket it belongs to (see spaceguard/throttling.py).
+    # When API_RATE_LIMIT_ENABLED is False the throttle list is emptied, which
+    # switches rate limiting off completely.
     'DEFAULT_THROTTLE_CLASSES': [
         'spaceguard.throttling.ActionScopedRateThrottle',
     ] if API_RATE_LIMIT_ENABLED else [],
+    # Named throttle buckets and their rates. The 'ai' scope allows at most
+    # 10 requests per minute (per user if logged in, per IP if anonymous).
     'DEFAULT_THROTTLE_RATES': {
         'ai': '10/min',
     },
@@ -216,48 +237,76 @@ REST_FRAMEWORK = {
 RATELIMIT_API_WINDOW = 60        # seconds
 RATELIMIT_API_MAX_WRITES = 120   # max write requests per IP per window
 
+# ---------------------------------------------------------------------------
 # IBM watsonx / Granite configuration (read-only from environment)
+# ---------------------------------------------------------------------------
+# Credentials used by the `assistant` app to call IBM's Granite LLM and
+# generate natural-language explanations of anomalies. All values come from
+# environment variables (the .env file), so real keys are never in git.
+#   WATSONX_API_KEY    — IBM Cloud API key (required for real calls)
+#   WATSONX_PROJECT_ID — the watsonx.ai project the model runs in
+#   WATSONX_URL        — regional endpoint of the watsonx service
+#   WATSONX_MODEL_ID   — which foundation model to use (Granite 13B here)
 WATSONX_API_KEY = os.environ.get('WATSONX_API_KEY', '')
 WATSONX_PROJECT_ID = os.environ.get('WATSONX_PROJECT_ID', '')
 WATSONX_URL = os.environ.get('WATSONX_URL', 'https://us-south.ml.cloud.ibm.com')
 WATSONX_MODEL_ID = os.environ.get('WATSONX_MODEL_ID', 'ibm/granite-13b-instruct-v2')
 
 # ML model storage directory
+# Trained/serialised machine-learning models (e.g. the anomaly detector) are
+# saved here and loaded at runtime. Lives outside `backend/`, next to the
+# templates and static folders.
 ML_MODELS_DIR = BASE_DIR.parent / 'models'
 
+# ---------------------------------------------------------------------------
 # Logging — console output, one handler per level bucket
+# ---------------------------------------------------------------------------
+# LOGGING configures Python's logging system as Django uses it.
+# Concept map:
+#   loggers   = named sources of log messages (one per app, e.g. 'missions')
+#   handlers  = where messages go (console, file, ...)
+#   formatters= how a message is rendered (timestamp, level, ...)
+#   filters   = extra conditions a message must pass (e.g. only in production)
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
+    'version': 1,                       # Logging config schema version (always 1)
+    'disable_existing_loggers': False,  # Keep loggers defined elsewhere
     'formatters': {
+        # Verbose format includes level, time, logger name, and the message.
         'verbose': {
             'format': '{levelname} {asctime} [{name}] {message}',
             'style': '{',
         },
+        # Simple format is just level + message.
         'simple': {
             'format': '{levelname} {message}',
             'style': '{',
         },
     },
     'filters': {
+        # Only lets messages through when DEBUG is False (i.e. in production),
+        # so error emails/console spam don't duplicate during development.
         'require_debug_false': {
             '()': 'django.utils.log.RequireDebugFalse',
         },
     },
     'handlers': {
+        # General-purpose console output for INFO and above.
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
+        # Separate stream for errors so they stand out in the logs.
         'error_console': {
             'class': 'logging.StreamHandler',
             'level': 'ERROR',
             'formatter': 'verbose',
         },
+        # Discards messages (used as a safe default for noisy libraries).
         'null': {
             'class': 'logging.NullHandler',
         },
     },
+    # Root logger: the catch-all for any logger without its own config.
     'root': {
         'handlers': ['console'],
         'level': 'INFO',
@@ -280,6 +329,8 @@ LOGGING = {
             'propagate': False,
         },
         # App loggers (missions, ai.pipeline, alerts, telemetry use these)
+        # Each SpaceGuard app logs to its own named logger so its output can
+        # be traced and tuned independently.
         'missions': {
             'handlers': ['console'],
             'level': 'INFO',
