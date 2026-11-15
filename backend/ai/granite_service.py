@@ -1,6 +1,24 @@
 """
 SpaceGuard AI — IBM Granite / watsonx.ai Integration Service
 Converts structured telemetry + anomaly analysis into human-readable explanations.
+
+What this module does
+---------------------
+Talks to IBM's Granite large language model through the watsonx.ai REST API
+and turns structured analysis results (raw telemetry, anomaly detection,
+health score, trend predictions, space weather) into plain-English text that
+mission operators can read and act on.
+
+How it fits the pipeline
+------------------------
+`ai/pipeline.py` runs the deterministic services first (AnomalyDetector →
+RiskEngine → TrendPredictor → SpaceWeatherService) and then calls
+`GraniteService.explain_anomaly()` for any non-NORMAL severity, so the
+dashboard shows a human-readable explanation next to the raw numbers.
+`ask_assistant()` powers the chat-style mission assistant. If watsonx.ai is
+unreachable or credentials are missing, every entry point degrades gracefully
+to a rule-based fallback (or the local `_local_ai_agent`) so the UI never
+breaks.
 """
 import json
 import logging
@@ -10,6 +28,17 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # Granite explanation prompt template — structured context only, no invented values
+#
+# `explain_anomaly()` fills in each {placeholder} with a pretty-printed JSON
+# dump of one piece of analysis, so the model always sees real measured values
+# instead of having to guess:
+#   {telemetry_json}     → the 9 raw sensor readings from the telemetry record
+#   {anomaly_json}       → AnomalyDetector output (is_anomaly, severity, suspicious parameters...)
+#   {health_json}        → RiskEngine output (health score 0-100, risk level, deductions)
+#   {predictions_json}   → TrendPredictor output (future values + time-to-threshold)
+#   {space_weather_json} → SpaceWeatherService output (Kp index, flares, risk level)
+# The labelled "SECTIONS" at the bottom force the model to answer in a fixed
+# format that `_parse_explanation()` can reliably split back into fields.
 EXPLANATION_PROMPT_TEMPLATE = """You are SpaceGuard AI, an expert spacecraft health analysis system.
 
 IMPORTANT RULES:
@@ -43,6 +72,11 @@ RECOMMENDED ACTION: [specific steps mission operators should take]
 Remember: This is decision-support information, NOT autonomous flight commands.
 """
 
+# Assistant prompt template — powers the chat-style "Mission Assistant".
+# {context_json} carries the whole current mission snapshot (latest telemetry,
+# health, anomaly, explanation, alerts, space weather) and {question} is the
+# operator's raw question. The model is told to answer in a fixed
+# PROBLEM → WHY → FIX structure so every answer stays actionable.
 ASSISTANT_PROMPT_TEMPLATE = """You are SpaceGuard AI Mission Assistant, an expert spacecraft health monitoring advisor.
 
 IMPORTANT RULES:
@@ -66,24 +100,53 @@ class GraniteService:
     """
     Calls IBM Granite via watsonx.ai REST API for natural language explanations.
     Falls back to rule-based explanation if API is unavailable.
+
+    Connection setup (all values come from Django settings / environment):
+      - WATSONX_API_KEY    → IBM Cloud API key, swapped for a temporary IAM
+                             bearer token (see `_get_iam_token`)
+      - WATSONX_URL        → regional watsonx.ai endpoint
+                             (e.g. https://us-south.ml.cloud.ibm.com)
+      - WATSONX_PROJECT_ID → the watsonx project that owns the model
+      - WATSONX_MODEL_ID   → which Granite model to use
+                             (e.g. ibm/granite-13b-instruct-v2)
+
+    Every public method returns a plain dict and never raises — if anything
+    goes wrong (missing credentials, network error, unexpected response) the
+    caller receives a rule-based fallback instead, and the dict carries a
+    `generated_by` / `source` field saying where the answer came from.
     """
 
     def __init__(self):
+        # All connection settings are read from Django settings (env-driven)
         self.api_key = settings.WATSONX_API_KEY
         self.project_id = settings.WATSONX_PROJECT_ID
         self.base_url = settings.WATSONX_URL
         self.model_id = settings.WATSONX_MODEL_ID
+        # IAM token cache: obtained on the first API call, then reused until
+        # it is close to expiry (avoids an extra auth round-trip per request)
         self._iam_token = None
         self._token_expiry = 0  # unix timestamp
 
     def _get_iam_token(self) -> str:
-        """Exchange IBM API key for IAM bearer token. Refreshes when within 5 min of expiry."""
+        """
+        Exchange IBM API key for IAM bearer token. Refreshes when within 5 min of expiry.
+
+        watsonx.ai does not accept the raw API key directly — it requires a
+        short-lived IAM (Identity & Access Management) bearer token. This
+        method swaps the key for such a token and caches it in memory
+        (tokens last ~1 hour), re-authenticating only when the cached token
+        is about to expire. Returns the bearer token string.
+        """
         import time
+        # No API key configured at all — raise so the caller can fall back
         if not self.api_key:
             raise ValueError('WATSONX_API_KEY is not configured.')
         # Refresh if no token or expiry within 5 minutes
+        # (300 s safety buffer so a token never expires mid-request)
         if self._iam_token and time.time() < self._token_expiry - 300:
             return self._iam_token
+        # Standard OAuth request to the IBM Cloud IAM endpoint: form-encoded
+        # body exchanging grant_type=apikey + our API key for an access token
         response = requests.post(
             'https://iam.cloud.ibm.com/identity/token',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
@@ -93,9 +156,12 @@ class GraniteService:
             },
             timeout=30,
         )
+        # Any HTTP error (bad key, IAM outage) becomes an exception here
         response.raise_for_status()
+        # Response shape: {"access_token": "...", "expires_in": 3600, ...}
         payload = response.json()
         self._iam_token = payload['access_token']
+        # Remember when the token expires so we can refresh proactively
         self._token_expiry = time.time() + payload.get('expires_in', 3600)
         return self._iam_token
 
@@ -103,9 +169,25 @@ class GraniteService:
         """
         Call watsonx.ai text generation endpoint.
         Returns the generated text string.
+
+        Sends one HTTP POST containing the full prompt plus generation
+        parameters, then pulls the single completion out of the JSON response.
+        Raises on any HTTP/network error — callers catch that and use the
+        rule-based fallback.
         """
+        # 1. Get a (cached) IAM bearer token for the Authorization header
         token = self._get_iam_token()
+        # The `version` query parameter pins the request to a fixed
+        # watsonx.ai API contract so future API changes cannot break us
         url = f'{self.base_url}/ml/v1/text/generation?version=2023-05-29'
+        # 2. Build the request body: which model, which project, the prompt,
+        #    and the generation parameters:
+        #      decoding_method='greedy' → always pick the highest-probability
+        #                                 token (deterministic, repeatable answers)
+        #      max_new_tokens=500       → hard cap on the length of the reply
+        #      stop_sequences=[]        → no early-stop phrases; let it finish
+        #      repetition_penalty=1.1   → slight penalty so the model does not
+        #                                 loop the same phrase over and over
         payload = {
             'model_id': self.model_id,
             'project_id': self.project_id,
@@ -121,8 +203,12 @@ class GraniteService:
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json',
         }
+        # 3. POST the prompt. 60 s timeout because LLM generation can be slow.
         response = requests.post(url, headers=headers, json=payload, timeout=60)
+        # A 4xx/5xx status raises here → caught upstream → fallback explanation
         response.raise_for_status()
+        # 4. Extract the text. Response shape:
+        #    {"results": [{"generated_text": "..."}], ...}
         result = response.json()
         return result['results'][0]['generated_text'].strip()
 
@@ -130,7 +216,16 @@ class GraniteService:
         """
         Parse structured sections from the Granite response text.
         Gracefully handles partial responses.
+
+        The prompt template tells the model to reply with lines like
+        "DETECTED PROBLEM: ..." — this walks the reply line by line and
+        rebuilds a dict keyed by those labels. A section may span several
+        lines; they are joined back into one string per field. Returns a dict
+        with snake_case keys, and anything the model omitted is filled in
+        from `anomaly_result` as a fallback.
         """
+        # Label exactly as the model writes it (uppercase) → snake_case key
+        # used in the rest of the application
         sections = {
             'DETECTED PROBLEM': 'detected_problem',
             'AFFECTED SUBSYSTEM': 'affected_subsystem',
@@ -140,27 +235,37 @@ class GraniteService:
             'RECOMMENDED ACTION': 'recommended_action',
         }
         result = {}
+        # Walk the text line by line: each "LABEL:" line starts a new section,
+        # and every following non-label line is appended to the open section
         lines = raw_text.split('\n')
-        current_key = None
-        current_value = []
+        current_key = None    # section we are currently inside
+        current_value = []    # lines collected for that section so far
 
         for line in lines:
             matched = False
+            # Does this line start one of the known sections? (case-insensitive)
             for label, key in sections.items():
                 if line.upper().startswith(label + ':'):
+                    # A new section begins → flush the previous one first
                     if current_key:
                         result[current_key] = ' '.join(current_value).strip()
+                    # Keep the text after "LABEL:" as the section's first line
                     current_key = key
                     current_value = [line[len(label) + 1:].strip()]
                     matched = True
                     break
+            # Not a label line → it belongs to the section we're inside
             if not matched and current_key:
                 current_value.append(line.strip())
 
+        # Flush the final section once the loop ends
         if current_key:
             result[current_key] = ' '.join(current_value).strip()
 
-        # Fill missing fields from anomaly_result as fallback
+        # Fill missing fields from anomaly_result as fallback. If the model
+        # returned a truncated or malformed answer, every section we did not
+        # get gets a safe default derived from the deterministic analysis
+        # (so downstream code can always read all six keys).
         result.setdefault('detected_problem', 'Anomaly detected in spacecraft telemetry.')
         result.setdefault('affected_subsystem', anomaly_result.get('affected_subsystem', 'UNKNOWN'))
         result.setdefault('severity', anomaly_result.get('severity', 'UNKNOWN'))
@@ -173,12 +278,19 @@ class GraniteService:
         """
         Rule-based explanation used when watsonx API is unavailable.
         Clearly labeled as non-AI output.
+
+        Builds the same six fields as a real Granite explanation, but purely
+        by string-formatting the deterministic analysis results (severity,
+        subsystem, suspicious parameters, health score). The extra
+        `generated_by` key lets the frontend show this as a fallback answer.
         """
         severity = anomaly_result.get('severity', 'UNKNOWN')
         subsystem = anomaly_result.get('affected_subsystem', 'UNKNOWN')
         params = anomaly_result.get('suspicious_parameters', [])
         score = health_result.get('health_score', 'N/A')
         params_str = ', '.join(params) if params else 'no specific parameters identified'
+        # Mention space weather only when it is serious enough to matter —
+        # HIGH/EXTREME solar activity can be the root cause of the anomaly
         sw = space_weather or {}
         weather_note = ''
         if sw.get('risk_level') in ('HIGH', 'EXTREME'):
@@ -214,13 +326,25 @@ class GraniteService:
         """
         Generate structured AI explanation for an anomaly.
         Returns the parsed explanation dict.
+
+        This is the entry point used by the analysis pipeline. It injects
+        every analysis result into the prompt, calls Granite, parses the
+        labelled sections of the reply, and stamps `generated_by` plus the
+        unparsed `raw_response` onto the result. If credentials are missing
+        or the API call fails for any reason, a rule-based
+        `_fallback_explanation()` is returned instead so the dashboard always
+        shows something useful.
         """
+        # Without credentials watsonx cannot be called at all → straight to fallback
         if not self.api_key or not self.project_id:
             logger.warning('watsonx credentials not configured — using fallback explanation.')
             fallback = self._fallback_explanation(anomaly_result, health_result, space_weather or {})
             fallback['generated_by'] = 'Rule-Based Fallback (credentials not configured)'
             return fallback
 
+        # 1. Build the prompt: fill every template placeholder with a
+        #    pretty-printed JSON dump. `default=str` safely serialises values
+        #    JSON does not understand (datetime, Decimal, numpy scalars, ...).
         prompt = EXPLANATION_PROMPT_TEMPLATE.format(
             telemetry_json=json.dumps(telemetry_data, indent=2, default=str),
             anomaly_json=json.dumps(anomaly_result, indent=2, default=str),
@@ -230,12 +354,17 @@ class GraniteService:
         )
 
         try:
+            # 2. Call watsonx.ai and 3. parse the labelled sections of the reply
             raw_text = self._call_granite(prompt)
             parsed = self._parse_explanation(raw_text, anomaly_result)
+            # Metadata: provenance of the answer + the unparsed model text
+            # (stored on the AIAnalysis record for auditing)
             parsed['generated_by'] = 'IBM Granite (ibm/granite-13b-instruct-v2)'
             parsed['raw_response'] = raw_text
             return parsed
         except Exception as exc:
+            # 4. Any failure (network, auth, timeout) → deterministic fallback,
+            #    but record the error type so operators know it is not AI output
             logger.error('Granite API call failed: %s', exc)
             fallback = self._fallback_explanation(anomaly_result, health_result, space_weather or {})
             fallback['generated_by'] = f'Rule-Based Fallback (API error: {type(exc).__name__})'
@@ -247,8 +376,20 @@ class GraniteService:
         Uses IBM Granite if credentials are configured, otherwise uses the
         built-in rule-based AI agent which reads real telemetry data.
         Never invents sensor values.
+
+        Args:
+            context: mission snapshot with keys such as `latest_telemetry`,
+                     `health`, `latest_anomaly`, `latest_explanation`,
+                     `active_alerts` and `space_weather`.
+            question: the operator's question in plain English.
+        Returns:
+            dict with `answer` (markdown text) and `source` (which engine
+            produced it: Granite or the local rule-based agent).
         """
+        # Route through watsonx only when fully configured
         if self.api_key and self.project_id:
+            # The whole mission snapshot is injected so the model can quote
+            # real sensor values instead of guessing
             prompt = ASSISTANT_PROMPT_TEMPLATE.format(
                 context_json=json.dumps(context, indent=2, default=str),
                 question=question,
@@ -272,13 +413,22 @@ def _local_ai_agent(context: dict, question: str) -> dict:
     Intelligent AI agent that reads real telemetry, health, anomaly and alert
     data from context and composes structured Problem → Why → How responses.
     Always grounded in actual sensor values — never invents data.
+
+    This is the offline fallback used when watsonx.ai is not configured or
+    the API call fails: a deterministic keyword router. Each `if` block below
+    matches a family of keywords in the operator's question and renders an
+    answer from the data in `context`; the first match wins. Anything that
+    matches nothing falls through to the full diagnostic report.
     """
+    # Lowercase once — every keyword check below is case-insensitive
     q = question.lower().strip()
-    tel = context.get('latest_telemetry', {})
-    health = context.get('health', {})
-    anomaly = context.get('latest_anomaly', {})
-    explanation = context.get('latest_explanation', {})
-    alerts = context.get('active_alerts', [])
+    # Pull out every data source the handlers might need. Each `context` key
+    # maps to one pipeline product (see pipeline.run_analysis_pipeline):
+    tel = context.get('latest_telemetry', {})            # latest raw sensor readings
+    health = context.get('health', {})                   # health score + risk level
+    anomaly = context.get('latest_anomaly', {})          # ML anomaly result
+    explanation = context.get('latest_explanation', {})  # Granite's last explanation
+    alerts = context.get('active_alerts', [])            # open alert records
     spacecraft = context.get('spacecraft', 'the spacecraft')
     mission = context.get('mission_name', 'this mission')
     status = context.get('mission_status', 'ACTIVE')
@@ -297,6 +447,14 @@ def _local_ai_agent(context: dict, question: str) -> dict:
         Scan every telemetry sensor against thresholds.
         Returns list of dicts: {sensor, value, unit, status, why, fix}
         """
+        # Operating limits and canned explanations for every sensor.
+        # Structure per sensor:
+        #   'unit'   → suffix used when displaying the value
+        #   'normal' → (low, high) safe operating band
+        #   'warn'   → (low, high) warning band outside 'normal'
+        #   'crit'   → (low, high) critical band; None = no limit on that side
+        #   'why_*' / 'fix_*' → pre-written root-cause and procedure text,
+        #                       picked by whether the reading is too high/low
         THRESHOLDS = {
             'temperature': {
                 'unit': '°C', 'normal': (-50, 85), 'warn': (85, 100), 'crit': (100, None),
@@ -350,10 +508,11 @@ def _local_ai_agent(context: dict, question: str) -> dict:
         }
 
         problems = []
+        # Compare every sensor reading against its warning/critical bands
         for sensor, cfg in THRESHOLDS.items():
             v = tel.get(sensor)
             if v is None:
-                continue
+                continue  # sensor missing from this record — skip quietly
             v = float(v)
             unit = cfg['unit']
             norm_lo, norm_hi = cfg['normal']
@@ -363,6 +522,8 @@ def _local_ai_agent(context: dict, question: str) -> dict:
             prob_status = None
             direction = None
 
+            # Check critical bands BEFORE warning bands, so a value that falls
+            # in both ranges is reported as CRITICAL, not the milder WARNING
             # Check critical
             if crit_hi is not None and v > crit_hi:
                 prob_status, direction = '🔴 CRITICAL', 'high'
@@ -374,7 +535,9 @@ def _local_ai_agent(context: dict, question: str) -> dict:
             elif warn_lo is not None and v < warn_lo:
                 prob_status, direction = '⚠ WARNING', 'low'
 
+            # Only readings outside the normal band produce an entry
             if prob_status:
+                # Pick the pre-written explanation matching the breach direction
                 why_key = f'why_{direction}'
                 fix_key = f'fix_{direction}'
                 why = cfg.get(why_key, cfg.get('why_high', cfg.get('why_low', 'Sensor reading outside normal operating range.')))
@@ -391,6 +554,12 @@ def _local_ai_agent(context: dict, question: str) -> dict:
 
     # ── Full diagnostic (default + broad queries) ─────────────────────────
     def _full_diagnostic_response():
+        """
+        Render the complete "Full Diagnostic Report": mission header, health
+        score with its deductions, ML anomaly details, per-sensor threshold
+        violations, open alerts and space weather. Used as the default reply
+        and for broad questions like "what is wrong?" or "show full report".
+        """
         score = health.get('health_score', 'N/A')
         level = health.get('risk_level', 'N/A')
         category = health.get('health_category', 'Awaiting analysis')
@@ -468,11 +637,17 @@ def _local_ai_agent(context: dict, question: str) -> dict:
         return '\n'.join(lines)
 
     def _indent(text, prefix='    '):
+        """Indent every line of a multi-line fix string (for markdown display)."""
         return '\n'.join(prefix + line for line in text.strip().split('\n'))
 
     # ── Single subsystem — Problem+Why+How ───────────────────────────────
     def _subsystem_pwh(sensor_key, display_name, value_str, norm_range_str,
                        prob_status, direction, why, fix, extra_context=''):
+        """
+        Render a single-subsystem answer in Problem → Why → How format.
+        `prob_status` of '✓ Normal' renders the healthy variant; otherwise the
+        why/fix text supplied by the caller is shown. Returns markdown text.
+        """
         lines = [f"**{display_name} — {spacecraft}**\n"]
         lines.append(f"**Current Reading:** {value_str}")
         lines.append(f"**Normal Range:** {norm_range_str}")
@@ -489,6 +664,9 @@ def _local_ai_agent(context: dict, question: str) -> dict:
 
     # ══════════════════════════════════════════════════════════════════════
     # ROUTING — match question intent to the right handler
+    # Order matters: each block scans `q` for keywords and returns as soon as
+    # one matches, so broad questions (report/health) are checked before the
+    # per-subsystem questions.
     # ══════════════════════════════════════════════════════════════════════
 
     # ── Help / capabilities ───────────────────────────────────────────────
@@ -882,6 +1060,7 @@ def _local_ai_agent(context: dict, question: str) -> dict:
                              'weather', 'launch', 'storm', 'aurora']):
         if not sw:
             return {'answer': 'Space weather data is not currently available.', 'source': 'SpaceGuard AI'}
+        # Pull out the pre-computed fields produced by SpaceWeatherService
         risk_score = sw.get('risk_score', 0)
         risk_level = sw.get('risk_level', 'LOW')
         recommendation = sw.get('recommendation', 'GO')
@@ -977,4 +1156,5 @@ def _local_ai_agent(context: dict, question: str) -> dict:
         return {'answer': '\n'.join(lines), 'source': 'SpaceGuard AI'}
 
     # ── Default: auto-diagnose and return full report ─────────────────────
+    # Nothing matched → play safe and give the operator the full picture
     return {'answer': _full_diagnostic_response(), 'source': 'SpaceGuard AI'}
