@@ -1,4 +1,2 @@
-Set-Content -Path .gitattributes -Value @(
-    "* text=auto"
-    "*.py text eol=lf"
-)
+* text=auto
+*.py text eol=lf
